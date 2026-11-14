@@ -165,8 +165,55 @@ exemplo ignorado pelo leitor
 """
 
 
+TESTES = """<!--
+exemplo ignorado
+### TS-099 · fantasma
+-->
+
+### TS-001 · Modelo de cadastro
+- estado: pendente
+- feature: F-001
+- tipo: unidade
+- quando: durante-build
+- modo: autonomo
+- como: pytest tests/test_model.py
+- criterio: cria e busca
+- motivo_momento: roda local, sem dependências
+
+### TS-002 · Fluxo de agenda ponta a ponta
+- estado: pendente
+- feature: F-002
+- tipo: e2e
+- quando: antes-deploy
+- modo: autonomo
+- como: playwright test agenda
+- criterio: marca horário livre
+- motivo_momento: precisa do app inteiro rodando
+
+### TS-003 · Aceite da dona
+- estado: pendente
+- feature: F-001
+- tipo: aceite
+- quando: antes-deploy
+- modo: manual
+- como: roteiro de 5 passos
+- criterio: dona aprova o cadastro
+- motivo_momento: só ela valida o jeito de trabalhar
+
+### TS-004 · Site no ar responde
+- estado: pendente
+- feature: F-002
+- tipo: smoke-pos-deploy
+- quando: pos-deploy
+- modo: autonomo
+- como: curl https://site/health
+- criterio: HTTP 200
+- motivo_momento: depende do domínio publicado
+"""
+
+
 def teste_features_tasks(d):
-    print("• features, tasks, paralelo, change request")
+    print("• features, tasks, testes por momento, paralelo, change request")
     set_secao(d, 5, "- E1 · MVP · primeira entrega")
     set_secao(d, 6, FEATURES)
     verifica("exemplo em comentário não vira feature", "F-099" not in sp(d, "status", "--json")[1] and
@@ -175,34 +222,96 @@ def teste_features_tasks(d):
     sp(d, "set-feature", "F-001", "aprovada")
     sp(d, "set-feature", "F-002", "aprovada")
     verifica("fase tasks", sp(d, "fase", "tasks")[0])
-    verifica("ids novos corretos", sp(d, "new-id", "F")[1].strip() == "F-003" and sp(d, "new-id", "T")[1].strip() == "T-004" and sp(d, "new-id", "CR")[1].strip() == "CR-001")
+    verifica("ids novos corretos", sp(d, "new-id", "F")[1].strip() == "F-003" and sp(d, "new-id", "T")[1].strip() == "T-004" and
+             sp(d, "new-id", "CR")[1].strip() == "CR-001" and sp(d, "new-id", "TS")[1].strip() == "TS-001")
     sp(d, "ficha", "tasks_paralelas", "sim")
     ok, out = sp(d, "check", falha=True)
     verifica("check barra tasks paralelas que disputam arquivo", ok and "T-001 e T-002" in out, out)
-    verifica("tasks→construção barrado pelo conflito", sp(d, "fase", "construcao", falha=True)[0])
     sp(d, "ficha", "tasks_paralelas", "não")
     verifica("sem paralelo o check passa", sp(d, "check")[0])
+    ok, out = sp(d, "fase", "construcao", falha=True)
+    verifica("tasks→construção barra sem plano de testes", ok and "sem teste no plano" in out, out)
+    set_secao(d, 7, TESTES)
+    verifica("teste de exemplo em comentário não entra", "TS-099" not in sp(d, "testes")[1])
+    verifica("new-id TS depois do plano", sp(d, "new-id", "TS")[1].strip() == "TS-005")
+    verifica("check valida o plano", sp(d, "check")[0])
     verifica("fase construcao", sp(d, "fase", "construcao")[0])
     ok, out = sp(d, "ready", "--json")
-    verifica("ready devolve tasks sem dependência pendente", {t["id"] for t in json.loads(out)["lote_paralelo"]} == {"T-001"} or
-             {t["id"] for t in json.loads(out)["lote_paralelo"]} <= {"T-001", "T-002"}, out)
+    verifica("ready devolve tasks sem dependência pendente", {t["id"] for t in json.loads(out)["lote_paralelo"]} <= {"T-001", "T-002"}, out)
     sp(d, "set-task", "T-001", "andamento")
     verifica("1ª task iniciada move feature para em-andamento", json.loads(sp(d, "status", "--json")[1])["features"].get("em-andamento") == 1)
     for t in ("T-001", "T-002", "T-003"):
         sp(d, "set-task", t, "feita")
-    verifica("deploy barra sem em-teste", sp(d, "fase", "deploy", falha=True)[0])
+    verifica("construção→testes barra feature ainda não em-teste", sp(d, "fase", "testes", falha=True)[0])
     sp(d, "set-feature", "F-001", "em-teste")
     sp(d, "set-feature", "F-002", "em-teste")
+    ok, out = sp(d, "fase", "testes", falha=True)
+    verifica("construção→testes barra teste 'durante-build' não executado", ok and "TS-001" in out, out)
+    verifica("set-teste com evidência", sp(d, "set-teste", "TS-001", "passou", "--evidencia", "docs/evidencias/ts-001.log")[0])
+    verifica("evidência fica no SPEC", "docs/evidencias/ts-001.log" in ler(os.path.join(d, "SPEC.md")))
+    verifica("estado de teste inválido recusado", sp(d, "set-teste", "TS-001", "quase", falha=True)[0])
+    verifica("fase testes", sp(d, "fase", "testes")[0])
+    ok, out = sp(d, "fase", "deploy", falha=True)
+    verifica("testes→deploy barra testes antes-deploy pendentes (autônomo e manual)", ok and "TS-002" in out and "TS-003" in out, out)
+    verifica("pós-deploy não trava o deploy", "TS-004" not in out)
+    sp(d, "set-teste", "TS-002", "falhou", "--evidencia", "docs/evidencias/e2e.png")
+    verifica("teste falho barra e orienta correção", "FALHOU" in sp(d, "fase", "deploy", falha=True)[1])
+    sp(d, "set-teste", "TS-002", "passou", "--evidencia", "docs/evidencias/e2e-ok.png")
+    sp(d, "set-teste", "TS-003", "passou", "--evidencia", "aceite da dona em 14/11")
     verifica("fase deploy", sp(d, "fase", "deploy")[0])
-    verifica("manutenção barra sem entregue", sp(d, "fase", "manutencao", falha=True)[0])
     sp(d, "set-feature", "F-001", "entregue")
     sp(d, "set-feature", "F-002", "entregue")
+    ok, out = sp(d, "fase", "manutencao", falha=True)
+    verifica("manutenção barra teste pós-deploy pendente", ok and "TS-004" in out, out)
+    sp(d, "set-teste", "TS-004", "passou", "--evidencia", "curl 200")
     verifica("fase manutencao", sp(d, "fase", "manutencao")[0])
     ok, out = sp(d, "cr-new", "Remarcar online", "--features", "F-002", "--motivo", "pedido")
     verifica("cr-new devolve CR-001", ok and out.strip() == "CR-001", out)
     sp(d, "cr-set", "CR-001", "aprovada")
     verifica("CR aprovado marca feature como alterada", json.loads(sp(d, "status", "--json")[1])["features"].get("alterada") == 1)
-    verifica("histórico registra fases e CR", all(k in ler(os.path.join(d, "SPEC.md")) for k in ("CR-001 aberta", "fase: Deploy → Manutenção")))
+    verifica("histórico registra fases, testes e CR", all(k in ler(os.path.join(d, "SPEC.md")) for k in ("CR-001 aberta", "fase: Deploy → Manutenção", "TS-001 → passou")))
+    sp(d, "render")
+    pn = ler(os.path.join(d, "docs", "painel.html"))
+    verifica("painel tem as abas por etapa", all(k in pn for k in ('data-t="entrevista"', 'data-t="features"', 'data-t="tasks"', 'data-t="testes"', 'data-t="historico"')))
+    verifica("aba de testes mostra momento, modo e evidência", "Depois do deploy" in pn and "🤖 autônomo" in pn and "docs/evidencias/e2e-ok.png" in pn)
+    verifica("painel mostra 9 fases com Testes", "Testes</li>" in pn)
+
+
+def teste_fluxo_guiado():
+    print("• fluxo guiado pelo escopo: descartar, plano, lista inicial do cliente")
+    d = novo(prof="m")
+    verifica("add insere pergunta do escopo antes da base no bloco", (sp(d, "add", "--bloco", "negocio", "--q", "Do escopo?", "--opt", "a")[0]
+             and [p["id"] for p in entrev(d)["perguntas"] if p["bloco"] == "negocio"][0] == "X-01"))
+    verifica("descartar exige motivo", sp(d, "descartar", "S-06", falha=True)[0])
+    verifica("descartar pergunta que não se aplica", sp(d, "descartar", "A-02", "--motivo", "sem processamento em segundo plano")[0])
+    nxt = [p["id"] for p in json.loads(sp(d, "next", "-n", "99", "--json")[1])]
+    verifica("descartada some da entrevista", "A-02" not in nxt)
+    verifica("descartada fica registrada no SPEC com motivo", "Perguntas da base que não se aplicam" in ler(os.path.join(d, "SPEC.md")) and "segundo plano" in ler(os.path.join(d, "SPEC.md")))
+    sp(d, "answer", "N-01", "--opt", "1")
+    verifica("não descarta pergunta respondida", sp(d, "descartar", "N-01", "--motivo", "x", falha=True)[0])
+    verifica("desfazer descarte", sp(d, "descartar", "A-02", "--desfazer")[0] and "A-02" in [p["id"] for p in json.loads(sp(d, "next", "-n", "99", "--json")[1])])
+    ok, out = sp(d, "plano")
+    verifica("plano mostra escopo × base por bloco", ok and "Negócio" in out and "escopo" in out, out)
+    ok, out = sp(d, "lista-cliente", "--json")
+    lc = json.loads(out)
+    verifica("sem seleção minha, há textos prontos para o usuário escolher", ok and lc["sugeridas"] == [] and len(lc["com_texto_pronto"]) >= 10 and all(x["texto"] for x in lc["com_texto_pronto"]))
+    verifica("texto pronto de design é sinalizado", any(x["design"] for x in lc["com_texto_pronto"]))
+    verifica("sugerir-cliente exige texto de negócio", sp(d, "sugerir-cliente", "--ids", "S-01", falha=True)[0])
+    verifica("sugerir-cliente marca as pré-selecionadas", sp(d, "sugerir-cliente", "--ids", "N-03,U-06,D-01")[0] and pergunta(d, "N-03")["selecao_cliente"] == "sugerida")
+    lc = json.loads(sp(d, "lista-cliente", "--json")[1])
+    verifica("lista separa sugeridas por mim das demais com texto pronto", {x["id"] for x in lc["sugeridas"]} == {"N-03", "U-06", "D-01"} and all(x["id"] not in {"N-03", "U-06", "D-01"} for x in lc["com_texto_pronto"]))
+    verifica("seleção aparece marcada no SPEC.md", "📌 sugerida p/ cliente" in ler(os.path.join(d, "SPEC.md")))
+    verifica("plano conta as sugeridas", sum(b["sugeridas_cliente"] for b in json.loads(sp(d, "plano", "--json")[1])) == 3)
+    verifica("desmarcar seleção", sp(d, "sugerir-cliente", "--ids", "D-01", "--remover")[0] and "selecao_cliente" not in pergunta(d, "D-01"))
+    sp(d, "sugerir-cliente", "--ids", "D-01")
+    ok, out = sp(d, "cliente-lote", "--sugeridas")
+    p = pergunta(d, "U-06")
+    verifica("cliente-lote --sugeridas direciona só as que marquei; design ganha visuais padrão", ok and p["cliente"]["ativa"] and len(p["cliente"]["visuais"]) == 2 and pergunta(d, "N-03")["cliente"]["ativa"])
+    verifica("o usuário escolhe outra com texto pronto, mesmo fora da seleção", sp(d, "cliente-lote", "--ids", "N-04")[0] and pergunta(d, "N-04")["cliente"]["texto"] == pergunta(d, "N-04")["neg"]["q"])
+    verifica("depois de direcionar, não sobra sugerida pendente", json.loads(sp(d, "lista-cliente", "--json")[1])["sugeridas"] == [])
+    verifica("cliente --sugerir também marca a seleção", sp(d, "cliente", "N-05", "--sugerir", "--texto", "Quem aprova?")[0] and pergunta(d, "N-05")["selecao_cliente"] == "sugerida")
+    ok, out = sp(d, "export-cliente")
+    verifica("página do cliente gerada a partir da lista inicial", ok and "perguntas novas" in out and os.path.exists(os.path.join(d, ".spec", "cliente", "index.html")), out)
 
 
 def teste_cliente(d):
@@ -346,6 +455,7 @@ def main():
     teste_entrevista()
     d = teste_gates_e_fases()
     teste_features_tasks(d)
+    teste_fluxo_guiado()
     dc = teste_cliente(d)
     teste_celular_e_render(dc)
     teste_netlify_offline()

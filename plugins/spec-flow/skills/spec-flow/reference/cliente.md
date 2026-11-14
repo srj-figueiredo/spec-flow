@@ -9,6 +9,16 @@ Muitas perguntas da entrevista são do **negócio**, não técnicas. O usuário 
 | **Entrevista completa** (artifact, `reference/celular.md`) | o usuário | todas as perguntas, mais a opção "Direcionar ao dono do negócio" |
 | **Página do cliente** (Netlify, este documento) | o dono do negócio | só as perguntas direcionadas a ele, reescritas em linguagem de negócio |
 
+## Lista inicial do cliente (você sugere, o usuário escolhe)
+
+Depois de montar o plano de perguntas a partir do escopo, **você propõe a primeira lista para o dono do negócio**, e a **escolha final é sempre do usuário**:
+
+1. `SPEC lista-cliente` mostra três grupos: **direcionadas**, **📌 sugeridas por você** e **outras com texto pronto**.
+2. Sua pré-seleção fica **marcada na lista completa** (selo 📌, texto pronto à vista e um filtro "Sugeridas p/ cliente"): `SPEC sugerir-cliente --ids A,B,C` para as que têm texto pronto no banco, ou `SPEC cliente <ID> --sugerir --texto "..." [--opt ...]` para escrever a sua. Regra de ouro: o dono do negócio responde sobre o **negócio dele** (rotina, clientes, regras, preferências), nunca sobre tecnologia.
+3. Mostre a lista ao usuário e peça aprovação. Ele pode, pergunta a pergunta: **Enviar ao cliente (texto sugerido)** com um toque; **Direcionar ao dono do negócio** para editar o texto, as opções e pedir arquivo; mandar uma que você **não** marcou (qualquer pergunta com texto pronto serve); ou não mandar uma que você marcou.
+4. Aprovadas: `SPEC cliente-lote --sugeridas` (as 📌 ainda não enviadas) ou `--ids A,B,C`. Perguntas de design ganham opções visuais padrão; para upload ou opções visuais próprias use `SPEC cliente <ID> ...`.
+5. `SPEC export-cliente` e publique.
+
 ## Direcionar uma pergunta
 
 Na página do usuário, cada pergunta (não respondida) tem o botão **Direcionar ao dono do negócio**. Ele abre a pergunta reescrita em linguagem de negócio, editável, e opções de resposta opcionais. Perguntas claramente de negócio já trazem a sugestão pronta (campo `neg` do banco). Nas técnicas, o campo vem vazio: o usuário pode escrever, ou você sugere com `SPEC cliente ID --sugerir --texto "..." [--opt ...]`.

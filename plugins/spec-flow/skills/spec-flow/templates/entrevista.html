@@ -27,6 +27,8 @@ main{max-width:720px;margin:0 auto;padding:14px 12px 120px}
 .bar .w{background:#6250d6}
 .btn.dir[aria-pressed=true]{border-color:#6250d6;color:#6250d6;font-weight:600}.btn.dir small{opacity:.75}
 .dirbox{margin-top:10px;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:10px}.dirbox label{display:block;font-size:.82rem;color:var(--ink2);margin:6px 0 2px}.dirbox textarea{margin-top:0;min-height:70px}
+.pin{color:#6250d6;font-weight:600}.sugtxt{font-size:.88rem;background:#efecfb;border-radius:10px;padding:8px 10px;margin:8px 0 0}@media (prefers-color-scheme:dark){.sugtxt{background:#2a2447}.pin{color:#9085e9}}
+.chip.pinchip{border-color:#6250d6;color:#6250d6}.chip.pinchip[aria-pressed=true]{background:#6250d6;border-color:#6250d6;color:#fff}.btn.dirq{border-color:#6250d6;color:#6250d6;font-weight:600}
 .chk{display:flex;gap:8px;align-items:flex-start;font-size:.85rem;color:var(--ink2);margin:8px 0}.chk input{margin-top:3px}
 .espera{font-size:.88rem;background:#efecfb;border-radius:10px;padding:8px 10px;margin:10px 0 0}@media (prefers-color-scheme:dark){.espera{background:#2a2447}}
 .tag{font-size:.78rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -74,7 +76,7 @@ const $=s=>document.querySelector(s);
 const ags=D.perguntas, blocos=D.blocos;
 let resp=Object.assign({},D.respostas||{});
 const cli={};ags.forEach(q=>{if(q.cliente&&q.cliente.ativa)cli[q.id]=q.cliente;});
-let blocoAtual=null, db=null, dict=null, conectado=false, aviso="";
+let filtroSug=false, blocoAtual=null, db=null, dict=null, conectado=false, aviso="";
 const LS="specflow:"+D.projeto;
 try{const x=JSON.parse(localStorage.getItem(LS)||"{}"),R=x.r||(x.c?{}:x),C=x.c||{};
   for(const k in R){if(!resp[k]||(R[k].em||"")>(resp[k].em||""))resp[k]=R[k];}
@@ -84,6 +86,7 @@ const esc=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",
 function textoResp(q){const r=resp[q.id];if(!r)return"";if(r.tipo==="opcao")return(r.indices||[]).map(i=>q.o[i-1]?q.o[i-1][0]:"").join("; ")+" "+(r.texto||"");if(r.tipo==="livre")return r.texto||"";return"";}
 function visivel(q){if(!q.se)return true;const ref=ags.find(x=>x.id===q.se[0]);if(!ref||!resp[ref.id]||resp[ref.id].tipo==="bypass")return false;return textoResp(ref).toLowerCase().includes(q.se[1].toLowerCase());}
 const vis=()=>ags.filter(visivel);
+const selecionada=q=>q.selecao_cliente==="sugerida"&&!(cli[q.id]&&cli[q.id].ativa)&&est(q)!=="r";
 const est=q=>{const r=resp[q.id];if(r&&q.revisao&&q.revisao.aberta&&(r.em||"")<=(q.revisao.em||""))return"v";return!r?(cli[q.id]&&cli[q.id].ativa?"w":"p"):r.tipo==="bypass"?"b":"r";};
 
 /* ---------- salvar ---------- */
@@ -125,8 +128,9 @@ function cabecalho(){
   $("#barra").innerHTML='<i class="a" style="width:'+(100*c.r/(c.t||1))+'%"></i><i class="w" style="width:'+(100*c.w/(c.t||1))+'%"></i><i class="b" style="width:'+(100*c.b/(c.t||1))+'%"></i>';
   const v=vis();const bs=blocos.filter(b=>v.some(q=>q.bloco===b.id));
   if(!bs.some(b=>b.id===blocoAtual))blocoAtual=(bs.find(b=>v.some(q=>q.bloco===b.id&&est(q)==="p"))||bs[0]||{}).id;
-  $("#chips").innerHTML=bs.map(b=>{const qs=v.filter(q=>q.bloco===b.id);const ok=qs.filter(q=>est(q)!=="p"&&est(q)!=="v").length;
-    return '<button class="chip'+(ok===qs.length?" done":"")+'" data-b="'+b.id+'" aria-current="'+(b.id===blocoAtual)+'">'+esc(b.nome)+'<span class="n">'+ok+'/'+qs.length+'</span></button>';}).join("");
+  const nsug=v.filter(selecionada).length;
+  $("#chips").innerHTML=((nsug||filtroSug)?'<button class="chip pinchip" data-pin="1" aria-pressed="'+filtroSug+'">📌 Sugeridas p/ cliente<span class="n">'+nsug+'</span></button>':"")+bs.map(b=>{const qs=v.filter(q=>q.bloco===b.id);const ok=qs.filter(q=>est(q)!=="p"&&est(q)!=="v").length;
+    return '<button class="chip'+(ok===qs.length?" done":"")+'" data-b="'+b.id+'" aria-current="'+(!filtroSug&&b.id===blocoAtual)+'">'+esc(b.nome)+'<span class="n">'+ok+'/'+qs.length+'</span></button>';}).join("");
 }
 function card(q,pos,total){
   const r=resp[q.id],e=est(q);
@@ -136,6 +140,9 @@ function card(q,pos,total){
   const livre=r&&(r.tipo==="livre"||(r.tipo==="opcao"&&r.texto))||(r&&r.tipo==="bypass"&&r.texto);
   const abrirTxt=(r&&r.tipo==="livre")||q._abrir;
   const cl=cli[q.id],neg=q.neg||{};
+  const sel=selecionada(q);
+  const quick=(neg.q&&e!=="r"&&!(cl&&cl.ativa))?'<button class="btn dirq" data-dirq="'+q.id+'">Enviar ao cliente (texto sugerido)</button>':"";
+  const sugtxt=sel?'<p class="sugtxt">📌 Sugeri esta para o cliente. Texto pronto: “'+esc(neg.q)+'”</p>':"";
   const dirBtn=e!=="r"?'<button class="btn dir" data-dir="'+q.id+'" aria-pressed="'+(e==="w"||!!q._dir)+'">Direcionar ao dono do negócio'+(neg.q&&!(cl&&cl.ativa)?' <small>(sugestão pronta)</small>':'')+'</button>':"";
   const painel=(q._dir&&e!=="r")?'<div class="dirbox"><label>Pergunta que o dono do negócio vai ver (linguagem de negócio; pode editar)</label><textarea data-dtxt="'+q.id+'">'+esc((cl&&cl.ativa&&cl.texto)||neg.q||"")+'</textarea>'+
     '<label>Opções de resposta para ele, uma por linha (opcional)</label><textarea data-dopt="'+q.id+'">'+esc(((cl&&cl.ativa&&cl.opcoes)||neg.o||[]).join("\n"))+'</textarea>'+
@@ -143,20 +150,20 @@ function card(q,pos,total){
   const espera=e==="w"?'<p class="espera">⏳ Direcionada ao dono do negócio: “'+esc(cl.texto)+'”</p>'+(q.resposta_cliente?'<p class="dica">✎ Cliente respondeu: '+esc(((q.resposta_cliente.opcao||"")+" "+(q.resposta_cliente.texto||"")).trim())+' <b>Traduza com o Claude para virar decisão.</b></p>':""):"";
   const mic=dict?'<button class="btn" data-mic="'+q.id+'" type="button">🎤 Ditar</button>':"";
   return '<section class="card '+(e==="r"?"ok":e==="b"?"byp":e==="w"?"wait":e==="v"?"rev":"")+'" id="q-'+q.id+'" data-card="'+q.id+'">'+
-    '<div class="tag"><b>Pergunta '+pos+' de '+total+'</b><span>'+esc(q.id)+'</span>'+(q.origem==="escopo"?'<span>· do escopo</span>':"")+(q.multi?'<span>· pode marcar várias</span>':"")+'</div>'+
+    '<div class="tag"><b>Pergunta '+pos+' de '+total+'</b><span>'+esc(q.id)+'</span>'+(q.origem==="escopo"?'<span>· do escopo</span>':"")+(sel?'<span class="pin">· 📌 sugerida para o cliente</span>':"")+(q.multi?'<span>· pode marcar várias</span>':"")+'</div>'+
     '<div class="q">'+esc(q.q)+'</div><p class="why">'+esc(q.why||"")+(q.motivo?' <i>(surgiu de: '+esc(q.motivo)+')</i>':"")+'</p>'+(q.dica?'<p class="dica">📎 No briefing: '+esc(q.dica)+' <b>Confirme ou corrija.</b></p>':"")+
-    (e==="v"?'<p class="espera rev">↻ <b>Revisar:</b> '+esc(q.revisao.motivo||"")+(q.revisao.origem?" (origem "+esc(q.revisao.origem)+")":"")+'<br><small>Decisão anterior: '+esc(q.revisao.decisao_anterior||"")+'</small></p>':"")+espera+'<div class="opts">'+ops+'</div>'+
+    (e==="v"?'<p class="espera rev">↻ <b>Revisar:</b> '+esc(q.revisao.motivo||"")+(q.revisao.origem?" (origem "+esc(q.revisao.origem)+")":"")+'<br><small>Decisão anterior: '+esc(q.revisao.decisao_anterior||"")+'</small></p>':"")+sugtxt+espera+'<div class="opts">'+ops+'</div>'+
     '<div class="acts"><button class="btn" data-outra="'+q.id+'" aria-pressed="'+!!abrirTxt+'">Outra resposta</button>'+mic+
-    dirBtn+'<button class="btn pular" data-pular="'+q.id+'" aria-pressed="'+(e==="b")+'">Pular (decidir depois)</button></div>'+painel+
+    quick+dirBtn+'<button class="btn pular" data-pular="'+q.id+'" aria-pressed="'+(e==="b")+'">Pular (decidir depois)</button></div>'+painel+
     (abrirTxt||livre||e==="b"?'<textarea data-txt="'+q.id+'" placeholder="'+(e==="b"?"Motivo ou risco de deixar para depois (opcional)":"Escreva a sua resposta")+'">'+esc(r?(r.texto||""):"")+'</textarea>':"")+
     '<div class="st '+(stMap[q.id]?stMap[q.id][1]:"")+'" data-st="'+q.id+'">'+esc(stMap[q.id]?stMap[q.id][0]:"")+'</div></section>';
 }
 function digitando(el){const a=document.activeElement;return!!(a&&a.tagName==="TEXTAREA"&&el&&el.contains(a));}
 function renderBloco(){
-  const v=vis(),qs=v.filter(q=>q.bloco===blocoAtual);
+  const v=vis(),qs=filtroSug?v.filter(selecionada):v.filter(q=>q.bloco===blocoAtual);
   const main=$("#main");
   if(digitando(main))return; /* não derruba quem está digitando */
-  main.innerHTML=(aviso?'<div class="aviso">'+aviso+'</div>':"")+(qs.length?qs.map(q=>card(q,v.indexOf(q)+1,v.length)).join(""):'<div class="vazio">Nenhuma pergunta neste bloco.</div>');
+  main.innerHTML=(aviso?'<div class="aviso">'+aviso+'</div>':"")+(qs.length?qs.map(q=>card(q,v.indexOf(q)+1,v.length)).join(""):'<div class="vazio">'+(filtroSug?"Nenhuma sugerida pendente. ✓":"Nenhuma pergunta neste bloco.")+'</div>');
 }
 function rodape(){
   const c=contagem();
@@ -166,14 +173,16 @@ function rodape(){
 function renderTudo(qid){cabecalho();
   const el=qid&&document.querySelector('[data-card="'+qid+'"]');
   if(el&&!digitando(el)){const v=vis(),q=ags.find(x=>x.id===qid);
-    if(q&&visivel(q)&&q.bloco===blocoAtual){const t=document.createElement("div");t.innerHTML=card(q,v.indexOf(q)+1,v.length);el.replaceWith(t.firstChild);}else renderBloco();}
+    if(q&&visivel(q)&&!filtroSug&&q.bloco===blocoAtual){const t=document.createElement("div");t.innerHTML=card(q,v.indexOf(q)+1,v.length);el.replaceWith(t.firstChild);}else renderBloco();}
   else if(!el)renderBloco();
   rodape();}
 
 /* ---------- eventos ---------- */
 document.addEventListener("click",ev=>{
   const t=ev.target.closest("button");if(!t)return;
-  if(t.dataset.b){blocoAtual=t.dataset.b;cabecalho();renderBloco();window.scrollTo({top:0});return;}
+  if(t.dataset.pin){filtroSug=!filtroSug;cabecalho();renderBloco();window.scrollTo({top:0});return;}
+  if(t.dataset.dirq){const q=ags.find(x=>x.id===t.dataset.dirq);direcionar(q,q.neg.q,q.neg.o||[],false);if(filtroSug){cabecalho();renderBloco();}return;}
+  if(t.dataset.b){filtroSug=false;blocoAtual=t.dataset.b;cabecalho();renderBloco();window.scrollTo({top:0});return;}
   if(t.dataset.n){const q=ags.find(x=>x.id===t.dataset.q);escolher(q,+t.dataset.n);return;}
   if(t.dataset.pular){pular(ags.find(x=>x.id===t.dataset.pular));return;}
   if(t.dataset.outra){const q=ags.find(x=>x.id===t.dataset.outra);q._abrir=true;

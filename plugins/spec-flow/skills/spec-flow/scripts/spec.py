@@ -94,7 +94,7 @@ def visivel(p, e):
 
 
 def visiveis(e):
-    return [p for p in e["perguntas"] if visivel(p, e)]
+    return [p for p in e["perguntas"] if visivel(p, e) and not p.get("descartada")]
 
 
 def estado_p(p):
@@ -165,9 +165,16 @@ def sync_decisoes(raiz):
                     dec = "AGUARDANDO CLIENTE: " + (p["cliente"].get("texto") or p["q"])
                 origem = "cliente"
             else:
-                dec, origem = "—", "pendente"
+                dec = "—"
+                origem = "pendente · 📌 sugerida p/ cliente" if p.get("selecao_cliente") == "sugerida" else "pendente"
             cel = lambda t: re.sub(r"\s+", " ", str(t)).replace("|", "/")  # noqa: E731
             linhas.append(f"| {p['id']} | {cel(p['q'])} | {cel(dec)} | {origem} |")
+        linhas.append("")
+    desc = [p for p in e["perguntas"] if p.get("descartada")]
+    if desc:
+        linhas += ["### Perguntas da base que não se aplicam", "", "| ID | Pergunta | Motivo |", "|---|---|---|"]
+        for p in desc:
+            linhas.append(f"| {p['id']} | {_uma_linha(p['q']).replace('|', '/')} | {_uma_linha(p['descartada']['motivo']).replace('|', '/')} |")
         linhas.append("")
     reg = _registro(e)
     if reg:
@@ -196,7 +203,7 @@ def sync_decisoes(raiz):
 def montar_pergunta_json(e, p, pos, total):
     return {"id": p["id"], "bloco": nome_bloco(e, p["bloco"]), "pos": pos, "total": total, "q": p["q"],
             "why": p.get("why", ""), "multi": bool(p.get("multi")), "origem": p.get("origem", "base"),
-            "motivo": p.get("motivo", ""), "dica": p.get("dica", ""), "revisao": p.get("revisao"), "neg": p.get("neg"), "cliente": p.get("cliente"),
+            "motivo": p.get("motivo", ""), "dica": p.get("dica", ""), "revisao": p.get("revisao"), "neg": p.get("neg"), "cliente": p.get("cliente"), "selecao_cliente": p.get("selecao_cliente"),
             "opcoes": [{"n": i + 1, "rotulo": o[0], "nota": (o[1] if len(o) > 1 else ""), "recomendada": i == 0}
                        for i, o in enumerate(p["o"])]}
 
@@ -249,7 +256,9 @@ def cmd_status(a, raiz):
     feats = S.features(md)
     tasks = S.todas_tasks(md)
     crs = [c for c in S.change_requests(md) if c["estado"] in ("aberta", "aprovada")]
-    d = {"projeto": S.titulo_projeto(md), "fase": fase, "fase_num": idx, "fases_total": len(S.FASES),
+    tst = S.testes(md)
+    d = {"testes": {k: sum(1 for t in tst if t["estado"] == k) for k in S.TESTE_ESTADOS if any(t["estado"] == k for t in tst)},
+         "projeto": S.titulo_projeto(md), "fase": fase, "fase_num": idx, "fases_total": len(S.FASES),
          "tipo": f.get("tipo"), "profundidade": f.get("profundidade"), "tasks_paralelas": f.get("tasks_paralelas"),
          "entrevista_web": f.get("entrevista_web", "—"),
          "features": {k: sum(1 for x in feats if x["estado"] == k) for k in S.ESTADOS_FEATURE if any(
@@ -286,6 +295,7 @@ def cmd_status(a, raiz):
             print("Puladas (bypass): " + ", ".join(d["bypass"]))
     print(f"Features: {d['features'] or 'nenhuma'}")
     print(f"Tasks: {d['tasks']}")
+    print(f"Testes: {d['testes'] or 'nenhum no plano'}")
     if crs:
         print("Change requests em aberto: " + ", ".join(d["crs_abertas"]))
     print(f"Entrevista pelo celular: {d['entrevista_web']}")
@@ -430,8 +440,9 @@ def cmd_cliente(a, raiz):
     opcoes = a.opt if a.opt else neg.get("o", [])
     if a.sugerir:
         p["neg"] = {"q": texto, "o": opcoes, "sugerida": True}
+        p["selecao_cliente"] = "sugerida"
         salvar_entrev(raiz, e)
-        print(f"{a.id}: sugestão para o cliente registrada (você decide se direciona).")
+        print(f"{a.id}: marcada como SUGERIDA para o cliente (você decide se direciona).")
         return
     if p.get("resposta"):
         die("pergunta já respondida: não dá para direcionar")
@@ -720,7 +731,12 @@ def cmd_add(a, raiz):
         p["multi"] = True
     if not p["o"]:
         die("informe ao menos uma --opt (a primeira é a recomendada)")
-    e["perguntas"].append(p)
+    # perguntas do escopo vêm antes das da base no mesmo bloco (a entrevista é guiada pelo escopo)
+    pos = next((i for i, x in enumerate(e["perguntas"]) if x["bloco"] == a.bloco and x.get("origem", "base") == "base"), None)
+    if pos is None:
+        e["perguntas"].append(p)
+    else:
+        e["perguntas"].insert(pos, p)
     salvar_entrev(raiz, e)
     sync_decisoes(raiz)
     print(f"{qid} adicionada ao bloco {a.bloco}.")
@@ -883,6 +899,46 @@ def ciclo_ou_conflitos(md):
     return erros
 
 
+def _erros_plano_testes(md, feats):
+    """Todo feature precisa de pelo menos um teste planejado (ou um 'n-a' com motivo); campos válidos."""
+    erros = []
+    ts = S.testes(md)
+    ids = [t["id"] for t in ts]
+    for i in set(ids):
+        if ids.count(i) > 1:
+            erros.append(f"teste {i} duplicado")
+    fids = {f["id"] for f in feats}
+    for f in feats:
+        if not any(t["feature"] == f["id"] for t in ts):
+            erros.append(f"{f['id']}: sem teste no plano (seção 7). Defina ao menos um, ou registre `n-a` com o motivo.")
+    for t in ts:
+        if t["estado"] not in S.TESTE_ESTADOS:
+            erros.append(f"{t['id']}: estado inválido '{t['estado']}'")
+        if t["quando"] not in S.TESTE_QUANDO:
+            erros.append(f"{t['id']}: 'quando' inválido '{t['quando']}' (use {', '.join(S.TESTE_QUANDO)})")
+        if t["modo"] not in ("autonomo", "manual"):
+            erros.append(f"{t['id']}: 'modo' inválido '{t['modo']}' (autonomo ou manual)")
+        if t["feature"] and t["feature"] not in {x["id"] for x in S.features(md)}:
+            erros.append(f"{t['id']}: feature '{t['feature']}' não existe")
+        if t["estado"] == "n-a" and not t["motivo_momento"]:
+            erros.append(f"{t['id']}: 'n-a' precisa de `motivo_momento` explicando por que não se aplica")
+        if t["estado"] != "n-a" and not (t["como"] and t["criterio"]):
+            erros.append(f"{t['id']}: falta `como` e/ou `criterio`")
+    return erros
+
+
+def _erros_execucao_testes(md, momentos):
+    erros = []
+    for t in S.testes(md):
+        if t["quando"] not in momentos:
+            continue
+        if t["estado"] in ("passou", "n-a"):
+            continue
+        rot = {"falhou": "FALHOU (corrija e rode de novo)", "bloqueado": "bloqueado", "em-execucao": "ainda em execução"}.get(t["estado"], "ainda não executado")
+        erros.append(f"{t['id']} ({S.QUANDO_NOME.get(t['quando'], t['quando'])}, {t['modo']}): {rot}.")
+    return erros
+
+
 def erros_de_gate(raiz, atual, destino):
     md, e = carregar(raiz)
     erros = []
@@ -929,17 +985,22 @@ def erros_de_gate(raiz, atual, destino):
                     if not t[campo]:
                         erros.append(f"{t['id']}: campo '{campo}' vazio.")
         erros += ciclo_ou_conflitos(md)
-    elif atual == "construcao" and destino == "deploy":
+        erros += _erros_plano_testes(md, feats)
+    elif atual == "construcao" and destino == "testes":
         for f in feats:
             if f["estado"] not in ("em-teste", "entregue"):
                 erros.append(f"{f['id']}: está '{f['estado']}' (precisa estar em-teste ou entregue).")
             for t in f["tasks"]:
                 if t["estado"] != "feita":
                     erros.append(f"{t['id']}: task {t['estado']}.")
+        erros += _erros_execucao_testes(md, ("durante-build",))
+    elif atual == "testes" and destino == "deploy":
+        erros += _erros_execucao_testes(md, ("durante-build", "antes-deploy"))
     elif atual == "deploy" and destino == "manutencao":
         for f in feats:
             if f["estado"] != "entregue":
                 erros.append(f"{f['id']}: está '{f['estado']}' (precisa estar entregue).")
+        erros += _erros_execucao_testes(md, ("pos-deploy",))
     return erros
 
 
@@ -988,6 +1049,8 @@ def cmd_check(a, raiz):
     md, _ = carregar(raiz)
     erros = ciclo_ou_conflitos(md)
     ents = {x["id"] for x in S.entregas(md)}
+    if S.testes(md):
+        erros += _erros_plano_testes(md, [f for f in S.features(md) if f["estado"] != "descartada"])
     for f in S.features(md):
         if f["estado"] not in S.ESTADOS_FEATURE:
             erros.append(f"{f['id']}: estado inválido '{f['estado']}'")
@@ -1054,6 +1117,166 @@ def cmd_set_task(a, raiz):
     print(f"{a.id}: {a.estado}.{dica}")
 
 
+def cmd_testes(a, raiz):
+    md, _ = carregar(raiz)
+    ts = [t for t in S.testes(md) if not a.quando or t["quando"] == a.quando]
+    if a.json:
+        print(json.dumps(ts, ensure_ascii=False, indent=1))
+        return
+    if not ts:
+        print("Nenhum teste no plano (seção 7).")
+        return
+    for q in S.TESTE_QUANDO:
+        grupo = [t for t in ts if t["quando"] == q]
+        if not grupo:
+            continue
+        print(f"== {S.QUANDO_NOME[q]}")
+        for t in grupo:
+            print(f"  {t['id']} [{S.TESTE_NOME.get(t['estado'], t['estado'])}] {t['titulo']} · {t['feature'] or '—'} · {t['tipo'] or '—'} · {t['modo']}")
+            if t["estado"] in ("pendente", "em-execucao", "falhou"):
+                print(f"      como: {t['como'] or '—'}")
+
+
+def cmd_set_teste(a, raiz):
+    md, _ = carregar(raiz)
+    if a.estado not in S.TESTE_ESTADOS:
+        die(f"estado inválido: {a.estado}. Use: {', '.join(S.TESTE_ESTADOS)}")
+    md = S.set_campo_teste(md, a.id, "estado", a.estado)
+    if a.evidencia:
+        md = S.set_campo_teste(md, a.id, "evidencia", a.evidencia)
+    md = S.add_historico(md, f"{a.id} → {a.estado}" + (f" (evidência: {a.evidencia})" if a.evidencia else ""))
+    S.gravar(caminhos(raiz)["spec"], md)
+    dica = " Crie uma task de correção e rode o teste de novo." if a.estado == "falhou" else ""
+    print(f"{a.id}: {a.estado}.{dica}")
+
+
+def cmd_descartar(a, raiz):
+    _, e = carregar(raiz)
+    p = next((x for x in e["perguntas"] if x["id"] == a.id), None)
+    if not p:
+        die(f"pergunta {a.id} não existe")
+    if a.desfazer:
+        p.pop("descartada", None)
+        salvar_entrev(raiz, e)
+        sync_decisoes(raiz)
+        print(f"{a.id}: de volta à entrevista.")
+        return
+    if p.get("resposta") or p.get("respostas_cliente"):
+        die("pergunta já respondida: não dá para descartar")
+    if not a.motivo:
+        die("informe --motivo (por que não se aplica a este projeto)")
+    p["descartada"] = {"motivo": a.motivo, "em": S.agora()}
+    p.pop("cliente", None)
+    salvar_entrev(raiz, e)
+    sync_decisoes(raiz)
+    print(f"{a.id}: não se aplica ({a.motivo}). Fica registrada no SPEC.md.")
+
+
+def cmd_plano(a, raiz):
+    """Plano de perguntas: como a entrevista está montada (escopo × base × descartadas), por bloco."""
+    _, e = carregar(raiz)
+    vs = visiveis(e)
+    blocos = []
+    for b in e["blocos"]:
+        ps = [p for p in vs if p["bloco"] == b["id"]]
+        desc = [p for p in e["perguntas"] if p["bloco"] == b["id"] and p.get("descartada")]
+        if ps or desc:
+            blocos.append({"bloco": b["nome"], "escopo": sum(1 for p in ps if p.get("origem") == "escopo"),
+                           "base": sum(1 for p in ps if p.get("origem", "base") == "base"), "descartadas": len(desc),
+                           "para_o_cliente": sum(1 for p in ps if (p.get("cliente") or {}).get("ativa")),
+                           "sugeridas_cliente": sum(1 for p in ps if p.get("selecao_cliente") == "sugerida" and _livres(p))})
+    if a.json:
+        print(json.dumps(blocos, ensure_ascii=False, indent=1))
+        return
+    print(f"{'Bloco':26s} escopo  base  descartadas  p/ cliente  sugeridas")
+    for b in blocos:
+        print(f"{b['bloco']:26s} {b['escopo']:6d} {b['base']:5d} {b['descartadas']:12d} {b['para_o_cliente']:11d} {b['sugeridas_cliente']:10d}")
+    print(f"Total visível: {len(vs)} perguntas.")
+
+
+def _livres(p):
+    return not (p.get("cliente") or {}).get("ativa") and not p.get("resposta") and not p.get("respostas_cliente")
+
+
+def _sugeridas(e):
+    """Perguntas que EU pré-selecionei para o cliente (marcadas na lista completa) e que ainda não foram direcionadas."""
+    return [p for p in visiveis(e) if p.get("selecao_cliente") == "sugerida" and (p.get("neg") or {}).get("q") and _livres(p)]
+
+
+def _com_texto_pronto(e):
+    """Têm texto em linguagem de negócio disponível, mas não estão entre as que eu pré-selecionei."""
+    return [p for p in visiveis(e) if p.get("selecao_cliente") != "sugerida" and (p.get("neg") or {}).get("q") and _livres(p)]
+
+
+def cmd_lista_cliente(a, raiz):
+    """A lista inicial do cliente: direcionadas, sugeridas por mim (marcadas na lista completa) e demais com texto pronto."""
+    _, e = carregar(raiz)
+    dirs = [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("resposta")]
+    sug, outras = _sugeridas(e), _com_texto_pronto(e)
+
+    def item(p):
+        return {"id": p["id"], "bloco": nome_bloco(e, p["bloco"]), "tecnica": p["q"], "texto": p["neg"]["q"], "opcoes": p["neg"].get("o", []),
+                "design": bool(p.get("design"))}
+    if a.json:
+        print(json.dumps({"direcionadas": [{"id": p["id"], "texto": p["cliente"]["texto"], "opcoes": p["cliente"].get("opcoes", [])} for p in dirs],
+                          "sugeridas": [item(p) for p in sug], "com_texto_pronto": [item(p) for p in outras]}, ensure_ascii=False, indent=1))
+        return
+    print(f"Direcionadas ao cliente ({len(dirs)}):")
+    for p in dirs:
+        print(f"  [{p['id']}] {p['cliente']['texto']}")
+    print(f"\n📌 Sugeridas por mim para o cliente ({len(sug)}), marcadas na lista completa:")
+    for p in sug:
+        print(f"  [{p['id']}] {p['neg']['q']}{'  (design: leva opções visuais)' if p.get('design') else ''}")
+    print(f"\nOutras com texto pronto, que você pode escolher ({len(outras)}):")
+    for p in outras:
+        print(f"  [{p['id']}] {p['neg']['q']}")
+    print("\nAprovando: `cliente-lote --sugeridas` ou `cliente-lote --ids A,B`; depois `export-cliente`. "
+          "Para mudar a seleção: `sugerir-cliente --ids A,B` / `--remover`.")
+
+
+def cmd_sugerir_cliente(a, raiz):
+    """Marca (ou desmarca) na lista completa as perguntas que eu sugiro para o cliente, usando o texto pronto."""
+    _, e = carregar(raiz)
+    ids = [x.strip() for x in a.ids.split(",") if x.strip()]
+    n = 0
+    for pid in ids:
+        p = next((x for x in e["perguntas"] if x["id"] == pid), None)
+        if not p:
+            die(f"pergunta {pid} não existe")
+        if a.remover:
+            p.pop("selecao_cliente", None)
+            n += 1
+            continue
+        if not (p.get("neg") or {}).get("q"):
+            die(f"{pid} não tem texto em linguagem de negócio: use `cliente {pid} --sugerir --texto \"...\"`")
+        p["selecao_cliente"] = "sugerida"
+        n += 1
+    salvar_entrev(raiz, e)
+    sync_decisoes(raiz)
+    print(f"{n} pergunta(s) {'desmarcada(s)' if a.remover else 'marcada(s) como sugerida(s) para o cliente'}.")
+
+
+def cmd_cliente_lote(a, raiz):
+    _, e = carregar(raiz)
+    alvo = _sugeridas(e) if a.sugeridas else [p for p in e["perguntas"] if p["id"] in set(x.strip() for x in (a.ids or "").split(",") if x.strip())]
+    if not alvo:
+        die("nada para direcionar: informe --ids A,B ou --sugeridas")
+    n = 0
+    for p in alvo:
+        neg = p.get("neg") or {}
+        if not neg.get("q") or p.get("resposta") or p.get("descartada"):
+            print(f"  {p['id']}: pulada (sem sugestão ou já resolvida)")
+            continue
+        cl = {"ativa": True, "texto": neg["q"], "opcoes": neg.get("o", []), "em": S.agora(), "arquivo": False, "arquivo_desc": "", "visuais": [], "refs": []}
+        if p.get("design"):
+            cl["visuais"] = [{"tipo": t, "titulo": CH.TITULOS[t], "opcoes": CH.opcoes_padrao(t)} for t in ("paleta", "layout")]
+        p["cliente"] = cl
+        n += 1
+    salvar_entrev(raiz, e)
+    sync_decisoes(raiz)
+    print(f"{n} perguntas direcionadas ao cliente. Rode `export-cliente` para gerar a página.")
+
+
 def cmd_hist(a, raiz):
     md, _ = carregar(raiz)
     S.gravar(caminhos(raiz)["spec"], S.add_historico(md, a.texto))
@@ -1070,7 +1293,7 @@ def cmd_cr_new(a, raiz):
     cid = S.proximo_id(md, "CR")
     bloco = f"### {cid} · {a.titulo}\n- estado: aberta\n- data: {S.hoje()}\n- features: {a.features or '—'}\n- motivo: {a.motivo or '—'}\n"
     for s in S.secoes(md):
-        if s["num"] == 7:
+        if s["num"] == 8:
             corpo7 = md[s["ini"]:s["fim"]].rstrip("\n")
             md = md[:s["ini"]] + corpo7 + "\n\n" + bloco + "\n" + md[s["fim"]:]
             break
@@ -1230,11 +1453,39 @@ def main():
     p.add_argument("id")
     p.add_argument("estado", choices=list(S.MARCA_DE))
     p.set_defaults(f=cmd_set_task)
+    p = sp.add_parser("testes", help="plano de testes por momento (durante a construção, antes ou depois do deploy)")
+    p.add_argument("--quando", choices=S.TESTE_QUANDO)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(f=cmd_testes)
+    p = sp.add_parser("set-teste", help="registra o resultado de um teste (com evidência)")
+    p.add_argument("id")
+    p.add_argument("estado", choices=S.TESTE_ESTADOS)
+    p.add_argument("--evidencia", help="caminho de log, captura de tela ou saída que prova")
+    p.set_defaults(f=cmd_set_teste)
+    p = sp.add_parser("descartar", help="pergunta da base que não se aplica a este projeto (fica registrada com o motivo)")
+    p.add_argument("id")
+    p.add_argument("--motivo")
+    p.add_argument("--desfazer", action="store_true")
+    p.set_defaults(f=cmd_descartar)
+    p = sp.add_parser("plano", help="como a entrevista está montada: escopo × base × descartadas, por bloco")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(f=cmd_plano)
+    p = sp.add_parser("lista-cliente", help="lista inicial do cliente: direcionadas + sugeridas")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(f=cmd_lista_cliente)
+    p = sp.add_parser("sugerir-cliente", help="marca na lista completa as perguntas que eu sugiro para o cliente (texto pronto)")
+    p.add_argument("--ids", required=True)
+    p.add_argument("--remover", action="store_true")
+    p.set_defaults(f=cmd_sugerir_cliente)
+    p = sp.add_parser("cliente-lote", help="direciona várias perguntas ao cliente de uma vez, com as sugestões em linguagem de negócio")
+    p.add_argument("--ids", help="IDs separados por vírgula")
+    p.add_argument("--sugeridas", action="store_true", help="todas as sugeridas")
+    p.set_defaults(f=cmd_cliente_lote)
     p = sp.add_parser("hist", help="registra uma linha no histórico")
     p.add_argument("texto")
     p.set_defaults(f=cmd_hist)
     p = sp.add_parser("new-id", help="próximo id livre (F, T ou CR)")
-    p.add_argument("prefixo", choices=["F", "T", "CR", "E"])
+    p.add_argument("prefixo", choices=["F", "T", "CR", "E", "TS"])
     p.set_defaults(f=cmd_new_id)
     p = sp.add_parser("cr-new", help="abre um change request")
     p.add_argument("titulo")

@@ -4,6 +4,7 @@ import json
 import os
 
 import specmd as S
+import cliente_html as CH
 
 esc = html.escape
 
@@ -64,6 +65,16 @@ footer{color:var(--muted);font-size:.8rem;margin-top:22px;text-align:center}
 .body pre{background:var(--code);padding:12px;border-radius:8px;overflow:auto}
 .body .tabela{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1em 0}
 @media print{body{background:#fff}.toc,.nav{display:none}.doc{display:block}}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin:0 0 14px;padding-bottom:2px;scrollbar-width:thin}
+.tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:999px;padding:8px 14px;font:inherit;font-size:.9rem;cursor:pointer;min-height:40px}
+.tabs button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}.tabs .n{opacity:.8;margin-left:4px;font-size:.8rem}
+.tab{display:none}.tab.on{display:block}
+.chip.ts-passou{background:var(--good);border-color:var(--good);color:#fff}.chip.ts-falhou{background:var(--crit);border-color:var(--crit);color:#fff}
+.chip.ts-bloqueado{border-color:var(--crit);color:var(--crit)}.chip.ts-em-execucao{background:var(--blue);border-color:var(--blue);color:#fff}
+.chip.ts-n-a{color:var(--muted)}.chip.cok{border-color:var(--blue);color:var(--blue)}.chip.cwt{border-color:#6250d6;color:#6250d6}.chip.cby{border-color:var(--warn);color:var(--ink)}.chip.crv{border-color:var(--serious);color:var(--ink)}
+.dec{font-size:.88rem;color:var(--ink2)}.hs{font-size:.8rem;color:var(--muted);margin:4px 0 0}
+.grupo{margin:14px 0 4px;font-weight:650;font-size:.95rem}
+.fdet{border-top:1px solid var(--line);padding:10px 0}.fdet h3{margin:0 0 4px;font-size:1rem}.fdet ul{margin:4px 0 0;padding-left:20px;font-size:.9rem}
 """
 
 ICON_ESTADO = {"proposta": "○", "aprovada": "✓", "em-andamento": "▶", "em-teste": "⚑", "entregue": "●",
@@ -119,6 +130,131 @@ def render_spec(raiz, md):
                   f'<footer>Gerado a partir do SPEC.md pela spec-flow. Não edite este arquivo: edite o SPEC.md.</footer>')
 
 
+ORIGEM_ROT = {"recomendada": "recomendada", "alternativa": "alternativa", "livre": "resposta livre"}
+
+
+def _tab_entrevista(e, ent):
+    vs, C, c = ent
+    h = (f'<div class="card"><h2>Decisões da entrevista</h2><div class="sub">{c["total"]} perguntas ({c["base"]} da base + {c["escopo"]} do escopo) · '
+         f'{len([p for p in e["perguntas"] if p.get("descartada")])} da base não se aplicam a este projeto.</div>')
+    blocos = []
+    for p in e["perguntas"]:
+        if p["bloco"] not in blocos and (p in vs or p.get("descartada")):
+            blocos.append(p["bloco"])
+    for b in blocos:
+        h += f'<div class="grupo">{esc(C.nome_bloco(e, b))}</div><div class="tabela"><table><tr><th>ID</th><th>Pergunta</th><th>Decisão</th><th>Situação</th></tr>'
+        for p in e["perguntas"]:
+            if p["bloco"] != b or not (p in vs or p.get("descartada")):
+                continue
+            if p.get("descartada"):
+                dec, sit = f'Não se aplica: {esc(p["descartada"]["motivo"])}', '<span class="chip ts-n-a">não se aplica</span>'
+            else:
+                k = C.estado_p(p)
+                r = p.get("resposta") or {}
+                if k == "respondida":
+                    dec = esc(C.texto_resposta(p))
+                    sit = f'<span class="chip cok">{esc(ORIGEM_ROT.get(r.get("origem", ""), "respondida"))}</span>'
+                elif k == "revisar":
+                    dec = esc(C.texto_resposta(p)) + f'<div class="hs">↻ Revisar: {esc(p["revisao"].get("motivo", ""))} (origem {esc(p["revisao"].get("origem", "?"))})</div>'
+                    sit = '<span class="chip crv">a revisar</span>'
+                elif k == "bypass":
+                    dec = esc(r.get("texto") or "Pulada (decidir depois)")
+                    sit = '<span class="chip cby">bypass</span>'
+                elif k == "aguardando":
+                    dec = "Com o cliente: " + esc(p["cliente"].get("texto", ""))
+                    sit = '<span class="chip cwt">aguardando cliente</span>'
+                else:
+                    dec = "—"
+                    sit = '<span class="chip">pendente</span>' + (' <span class="chip cwt">📌 sugerida p/ cliente</span>' if p.get("selecao_cliente") == "sugerida" else "")
+            extra = ""
+            for rc in p.get("respostas_cliente") or []:
+                extra += f'<div class="hs">🔒 Cliente ({esc(rc["em"][:10])}{" · " + esc(rc["respondente"]) if rc.get("respondente") else ""}): {esc(" · ".join(CH.resumo(rc)))}</div>'
+            for hs in p.get("historico") or []:
+                extra += f'<div class="hs">Decisão anterior ({esc(hs["substituida_em"][:10])}): {esc(hs.get("texto", ""))}</div>'
+            tag = '<span class="chip">escopo</span> ' if p.get("origem") == "escopo" else ""
+            h += f'<tr><td>{esc(p["id"])}</td><td>{tag}{esc(p["q"])}</td><td class="dec">{dec}{extra}</td><td>{sit}</td></tr>'
+        h += "</table></div>"
+    return h + "</div>"
+
+
+def _tab_features(feats, tab_features):
+    if not feats:
+        return '<div class="card"><div class="vazio">Ainda não há features. Elas nascem depois da entrevista.</div></div>'
+    d = '<div class="card"><h2>Detalhe das features</h2>'
+    for x in feats:
+        d += (f'<div class="fdet"><h3>{esc(x["id"])} · {esc(x["titulo"])} {chip(x["estado"])}</h3>'
+              f'<div class="sub">{esc(x["entrega"] or "sem entrega")}{" · " + esc(x["origem"]) if x.get("origem") else ""} · {esc(x["valor"])}</div>')
+        if x["aceite"]:
+            d += "<div class='sub' style='margin-top:6px'>Critérios de aceite:</div><ul>" + "".join(f"<li>{esc(a)}</li>" for a in x["aceite"]) + "</ul>"
+        if x["tasks"]:
+            ok = sum(1 for t in x["tasks"] if t["estado"] == "feita")
+            d += f"<div class='sub' style='margin-top:6px'>{ok}/{len(x['tasks'])} tasks feitas</div>"
+        d += "</div>"
+    return tab_features + d + "</div>"
+
+
+def _tab_testes(tst, feats):
+    if not tst:
+        return '<div class="card"><h2>Plano de testes</h2><div class="vazio">Ainda não há plano de testes. Ele nasce junto com as features e é executado no momento que fizer sentido para cada caso.</div></div>'
+    cont = {k: sum(1 for t in tst if t["estado"] == k) for k in S.TESTE_ESTADOS}
+    resumo = " · ".join(f"{S.TESTE_NOME[k]}: {v}" for k, v in cont.items() if v)
+    nomes = {x["id"]: x["titulo"] for x in feats}
+    h = f'<div class="card"><h2>Plano de testes</h2><div class="sub">{esc(resumo)}. Cada teste é executado no momento que faz sentido para o caso; os autônomos rodam sozinhos e deixam evidência.</div>'
+    for q in S.TESTE_QUANDO:
+        grupo = [t for t in tst if t["quando"] == q]
+        if not grupo:
+            continue
+        h += f'<div class="grupo">{esc(S.QUANDO_NOME[q])}</div><div class="tabela"><table><tr><th>Teste</th><th>Feature</th><th>Tipo</th><th>Modo</th><th>Estado</th><th>Evidência</th><th>Por que neste momento</th></tr>'
+        for t in grupo:
+            modo = "🤖 autônomo" if t["modo"] == "autonomo" else "🧑 manual"
+            ev = f"<code>{esc(t['evidencia'])}</code>" if t["evidencia"] else "—"
+            h += (f'<tr><td><b>{esc(t["id"])}</b> {esc(t["titulo"])}<div class="hs">{esc(t["criterio"])}</div></td>'
+                  f'<td>{esc(t["feature"] or "—")}<div class="hs">{esc(nomes.get(t["feature"], ""))}</div></td><td>{esc(t["tipo"] or "—")}</td><td>{modo}</td>'
+                  f'<td><span class="chip ts-{t["estado"]}">{esc(S.TESTE_NOME.get(t["estado"], t["estado"]))}</span></td><td>{ev}</td><td class="dec">{esc(t["motivo_momento"] or "—")}</td></tr>')
+        h += "</table></div>"
+    return h + "</div>"
+
+
+def _tab_historico(md, hist, crs, f):
+    h = '<div class="card"><h2>Links e endereços</h2><ul class="pend">'
+    achou = False
+    for chave, rot in (("cliente_url", "Página do cliente"), ("entrevista_web", "Entrevista completa (celular)")):
+        v = f.get(chave, "")
+        if v and v != "—":
+            achou = True
+            h += f'<li><span class="ic">🔗</span><span>{esc(rot)}: ' + (f'<a href="{esc(v)}">{esc(v)}</a>' if v.startswith("http") else esc(v)) + "</span></li>"
+    h += "</ul>" if achou else ""
+    if not achou:
+        h += '<li class="vazio">Nenhum link registrado ainda.</li></ul>'
+    h += '</div><div class="card"><h2>Histórico completo</h2>'
+    if hist:
+        h += '<ul class="hist">' + "".join(f'<li><time>{esc(x["data"])}</time>{esc(x["texto"])}</li>' for x in reversed(hist)) + "</ul>"
+    else:
+        h += '<div class="vazio">Sem registros.</div>'
+    return h + "</div>"
+
+
+def _abas(md, e, ent, feats, tasks, tst, hist, crs, f, visao, tab_features, tab_tasks):
+    corpos = [("visao", "Visão geral", "", visao),
+              ("entrevista", "Entrevista", f'{ent[2]["respondidas"]}/{ent[2]["total"]}' if ent else "", _tab_entrevista(e, ent) if ent else '<div class="card"><div class="vazio">Sem entrevista.</div></div>'),
+              ("features", "Features", str(len(feats)) if feats else "", _tab_features(feats, tab_features)),
+              ("tasks", "Tasks", f'{sum(1 for t in tasks if t["estado"] == "feita")}/{len(tasks)}' if tasks else "",
+               tab_tasks or '<div class="card"><div class="vazio">Ainda não há tasks.</div></div>'),
+              ("testes", "Testes", f'{sum(1 for t in tst if t["estado"] == "passou")}/{sum(1 for t in tst if t["estado"] != "n-a")}' if tst else "", _tab_testes(tst, feats)),
+              ("historico", "Histórico", "", _tab_historico(md, hist, crs, f))]
+    nav = '<nav class="tabs" role="tablist">' + "".join(
+        f'<button type="button" data-t="{k}"{" class=on" if i == 0 else ""}>{esc(r)}' + (f'<span class="n">{esc(n)}</span>' if n else "") + "</button>"
+        for i, (k, r, n, _) in enumerate(corpos)) + "</nav>"
+    pain = "".join(f'<section class="tab{" on" if i == 0 else ""}" id="t-{k}">{c}</section>' for i, (k, _, _, c) in enumerate(corpos))
+    js = ("<script>(function(){var b=document.querySelectorAll('.tabs button'),t=document.querySelectorAll('.tab');"
+          "function go(k){b.forEach(function(x){x.classList.toggle('on',x.dataset.t===k)});t.forEach(function(x){x.classList.toggle('on',x.id==='t-'+k)});"
+          "if(history.replaceState)history.replaceState(null,'','#'+k);}"
+          "b.forEach(function(x){x.addEventListener('click',function(){go(x.dataset.t)})});"
+          "var h=location.hash.slice(1);if(h&&document.getElementById('t-'+h))go(h);})();</script>"
+          "<noscript><style>.tab{display:block!important}.tabs{display:none}</style></noscript>")
+    return nav + pain + js
+
+
 def render_painel(raiz, md, e):
     nome = S.titulo_projeto(md)
     f = S.ficha(md)
@@ -149,6 +285,7 @@ def render_painel(raiz, md, e):
          f'profundidade {esc(f.get("profundidade", ""))} · tasks em paralelo: {esc(f.get("tasks_paralelas", "não"))}</div></div>'
          f'<div class="nav"><a href="spec.html">Ler a spec completa →</a></div></header>')
     h += f'<div class="card"><h2>Fase do projeto</h2><ol class="fases">{passos}</ol></div>'
+    marks = []
 
     # pendências (calculadas antes para o KPI)
     pend = []
@@ -173,6 +310,14 @@ def render_painel(raiz, md, e):
     for t in tasks:
         if t["estado"] == "bloqueada":
             pend.append(("■", "c", f"Task bloqueada · {t['id']} · {t['titulo']}"))
+    tst = S.testes(md)
+    for t in tst:
+        if t["estado"] == "falhou":
+            pend.append(("✗", "c", f"Teste FALHOU · {t['id']} · {t['titulo']}"))
+        elif t["estado"] == "bloqueado":
+            pend.append(("■", "c", f"Teste bloqueado · {t['id']} · {t['titulo']}"))
+        elif t["modo"] == "manual" and t["estado"] in ("pendente", "em-execucao") and idx >= S.FASES.index("testes"):
+            pend.append(("🧑", "w", f"Teste manual aguardando você · {t['id']} · {t['titulo']}"))
     for x in feats:
         if x["estado"] == "em-teste":
             pend.append(("⚑", "w", f"Aguardando seu aceite · {x['id']} · {x['titulo']}"))
@@ -192,11 +337,17 @@ def render_painel(raiz, md, e):
            f'<div class="s">{pct(entregues, len(ativas))}% do escopo ativo</div></div>')
     kp += (f'<div class="card kpi"><div class="l">Tasks feitas</div><div class="n">{feitas}/{len(tasks)}</div>'
            f'<div class="s">{pct(feitas, len(tasks))}% concluído</div></div>')
+    if tst:
+        tp = sum(1 for t in tst if t["estado"] == "passou")
+        tv = sum(1 for t in tst if t["estado"] != "n-a")
+        kp += (f'<div class="card kpi"><div class="l">Testes que passaram</div><div class="n">{tp}/{tv}</div>'
+               f'<div class="s">{sum(1 for t in tst if t["estado"] == "falhou")} falharam</div></div>')
     kp += (f'<div class="card kpi"><div class="l">Pendências</div><div class="n">{len(pend)}</div>'
            f'<div class="s">{"nada travando" if not pend else "veja a lista abaixo"}</div></div>')
+    marks.append(("kpi", len(h)))
     h += f'<div class="grid g4">{kp}</div>'
 
-    # entrevista
+    marks.append(("ent", len(h)))
     if ent:
         vs, C, c = ent
         h += '<div class="card"><h2>Entrevista de requisitos</h2>'
@@ -216,7 +367,7 @@ def render_painel(raiz, md, e):
                   f'{barra([("ok", pct(r, len(ps))), ("wait", pct(w, len(ps))), ("byp", pct(y, len(ps)))])}<span class="v">{r + y}/{len(ps)}</span></div>')
         h += '<div class="sub">Azul: respondida · roxo: com o cliente · amarelo: pulada (bypass, vira pendência)</div></div>'
 
-    # entregas
+    marks.append(("entregas", len(h)))
     if ents:
         h += '<div class="card"><h2>Entregas</h2>'
         for en in ents:
@@ -231,7 +382,7 @@ def render_painel(raiz, md, e):
                 h += f'<div class="sub">{esc(en["objetivo"])}</div>'
         h += "</div>"
 
-    # features
+    marks.append(("feats", len(h)))
     if feats:
         cols = [k for k in S.ESTADOS_FEATURE if any(x["estado"] == k for x in feats)]
         h += '<div class="card"><h2>Features</h2><div class="kan">'
@@ -248,7 +399,7 @@ def render_painel(raiz, md, e):
             h += "</div>"
         h += "</div></div>"
 
-    # tasks
+    marks.append(("tasks", len(h)))
     if tasks:
         cont = {k: sum(1 for t in tasks if t["estado"] == k) for k in ICON_TASK}
         resumo = " · ".join(f"{ICON_TASK[k]} {NOME_TASK[k]}: {v}" for k, v in cont.items())
@@ -266,7 +417,7 @@ def render_painel(raiz, md, e):
             h += "</table></div></details>"
         h += "</div>"
 
-    # pendências + CRs
+    marks.append(("pend", len(h)))
     h += '<div class="grid g2"><div class="card"><h2>Pendências</h2>'
     if pend:
         h += '<ul class="pend">' + "".join(f'<li><span class="ic {c_}">{i}</span><span>{esc(t)}</span></li>' for i, c_, t in pend) + "</ul>"
@@ -285,15 +436,21 @@ def render_painel(raiz, md, e):
         h += '<div class="vazio">Nenhuma mudança pedida ainda.</div>'
     h += "</div></div>"
 
-    # histórico
+    marks.append(("hist", len(h)))
     h += '<div class="card"><h2>Últimos registros</h2>'
     if hist:
         h += '<ul class="hist">' + "".join(f'<li><time>{esc(x["data"])}</time>{esc(x["texto"])}</li>' for x in reversed(hist[-12:])) + "</ul>"
     else:
         h += '<div class="vazio">Sem registros.</div>'
     h += "</div>"
-    h += f'<footer>Gerado em {S.hoje()} a partir do SPEC.md · spec-flow</footer>'
-    return pagina(f"{nome} — Painel", h)
+    marks.append(("fim", len(h)))
+    seg = {n: h[a:(marks[i + 1][1])] for i, (n, a) in enumerate(marks[:-1])}
+    cabeca = h[:marks[0][1]]
+    painel = _abas(md, e, ent, feats, tasks, tst, hist, crs, f,
+                   visao=seg["kpi"] + seg["ent"] + seg["entregas"] + seg["pend"] + seg["hist"],
+                   tab_features=seg["feats"], tab_tasks=seg["tasks"])
+    rodape = f'<footer>Gerado em {S.hoje()} a partir do SPEC.md · spec-flow</footer>'
+    return pagina(f"{nome} — Painel", cabeca + painel + rodape)
 
 
 def render_all(raiz):

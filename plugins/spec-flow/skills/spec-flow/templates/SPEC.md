@@ -68,10 +68,31 @@ Estados da feature: proposta, aprovada, em-andamento, em-teste, entregue, altera
 Marcas da task: [ ] pendente, [~] em andamento, [x] feita, [!] bloqueada.
 -->
 
-## 7. Change requests
+## 7. Testes
+
+O plano de testes nasce junto com as features e é executado no **momento que fizer sentido para cada caso**: durante a construção, antes do deploy ou só depois dele. Quanto mais autônomo, melhor: o que dá para rodar sozinho roda sozinho, e só vira roteiro manual o que depende de uma pessoa.
+
+<!--
+Formato de cada teste (os campos com "- " no início da linha são lidos pelo script):
+
+### TS-001 · Cadastro de paciente cria e busca
+- estado: pendente
+- feature: F-001
+- tipo: unidade | integracao | e2e | aceite | acessibilidade | carga | seguranca | smoke-pos-deploy
+- quando: durante-build | antes-deploy | pos-deploy
+- modo: autonomo | manual
+- como: comando ou roteiro que prova (ex.: pytest tests/test_paciente.py)
+- criterio: o que precisa ser verdade para passar
+- motivo_momento: por que este momento (ex.: depende do domínio no ar)
+- evidencia: caminho de log, captura de tela ou saída (preenchido ao executar)
+
+Estados: pendente, em-execucao, passou, falhou, bloqueado, n-a (não se aplica, com motivo).
+-->
+
+## 8. Change requests
 
 Mudanças pedidas depois da primeira entrega. Formato: `### CR-001 · título`, com `estado`, `features`, `motivo`.
 
-## 8. Histórico
+## 9. Histórico
 
 - {{DATA}} · projeto criado com a spec-flow

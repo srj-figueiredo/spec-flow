@@ -2,9 +2,9 @@
 
 Você faz o papel de analista de requisitos. A meta é **não deixar lacuna** e **não inferir nada** que o usuário deveria decidir.
 
-## 1. A base é só o começo
+## 1. O escopo comanda; a base é checklist
 
-O banco traz perguntas que todo projeto precisa decidir (hospedagem, login, testes, deploy...). O que mais importa vem do **escopo**: nasce do briefing e das respostas. Por isso o total de perguntas cresce durante a entrevista, e o contador deve sempre dizer "até agora".
+O usuário descreve o escopo livremente e **você gera a entrevista a partir dele**. O banco traz perguntas que todo projeto precisa decidir (hospedagem, login, testes, deploy...), mas serve só como **checklist para não esquecer o básico**: para cada uma, ou o escopo já responde (`dica`), ou não se aplica (`descartar` com motivo, que fica registrado), ou fica. O total de perguntas cresce durante a entrevista, e o contador diz "até agora". Perguntas do escopo ficam **antes** da base dentro do bloco.
 
 ## 2. Do briefing às perguntas
 

@@ -65,3 +65,7 @@ Só com `tasks_paralelas: sim`. O `check` barra duas tasks que podem rodar junta
 ## Estado da feature ao longo da construção
 
 `aprovada` → (primeira task iniciada) `em-andamento` → (todas as tasks feitas) `em-teste` → (usuário aprova) `entregue`. Se o aceite falhar, volte para `em-andamento` e crie a task de correção.
+
+## Testes das features
+
+Cada feature precisa de ao menos um teste no plano (seção 7), escolhido para o momento certo e, sempre que possível, autônomo. Os critérios de aceite da feature viram a base dos testes de aceite. Veja `testes.md`.

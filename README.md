@@ -8,16 +8,17 @@ o que foi feito e por quê (o próprio Claude também).
 
 ## O que ela faz
 
-1. **Entrevista de requisitos** adaptada ao escopo: perguntas por blocos (negócio, stack, arquitetura, testes...), com
-   múltipla escolha, uma opção recomendada, resposta livre e "pular". Perguntas novas surgem do briefing e das respostas.
+1. **Entrevista de requisitos guiada pelo escopo** (a primeira pergunta é livre, no chat; o banco de perguntas é só um checklist): perguntas por blocos (negócio, stack, arquitetura, testes...), com
+   múltipla escolha, uma opção recomendada, resposta livre e "pular". Perguntas novas surgem do escopo e das respostas.
    Pode ser respondida **em momentos diferentes, pelo celular**, com salvamento automático.
 2. **SPEC.md** com objetivo, escopo, decisões, como o sistema está hoje, entregas, features (com estado), change requests e histórico.
 3. **Features em entregas faseadas** e **tasks** que agentes independentes conseguem executar (opcionalmente em paralelo).
-4. **Painel visual** (`docs/painel.html`) e **documento legível** (`docs/spec.html`) gerados a partir do SPEC.md.
-5. **Change requests**: uma mudança daqui a meses vira mini-entrevista, atualiza as features e fica no histórico.
-6. **Retomada automática**: toda sessão nova mostra em que fase o projeto está e continua de onde parou.
+4. **Testes no momento certo e o mais autônomos possível**: cada teste vai para durante a construção, antes ou depois do deploy, com evidência.
+5. **Painel visual por etapa** (`docs/painel.html`, uma aba para entrevista, features, tasks, testes e histórico) e **documento legível** (`docs/spec.html`) gerados a partir do SPEC.md.
+6. **Change requests**: uma mudança daqui a meses vira mini-entrevista, atualiza as features e fica no histórico.
+7. **Retomada automática**: toda sessão nova mostra em que fase o projeto está e continua de onde parou.
 
-Fases: Entrada → Entrevista → Spec → Features → Tasks → Construção → Deploy → Manutenção. Só avança com tudo definido ou com bypass registrado.
+Fases: Entrada → Entrevista → Spec → Features → Tasks → Construção → Testes → Deploy → Manutenção. Só avança com tudo definido ou com bypass registrado.
 
 > **Guia completo de uso:** [GUIA.md](GUIA.md) · **Testes:** `python3 tests/smoke.py`
 

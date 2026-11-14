@@ -3,10 +3,10 @@ import datetime
 import html
 import re
 
-FASES = ["entrada", "entrevista", "spec", "features", "tasks", "construcao", "deploy", "manutencao"]
+FASES = ["entrada", "entrevista", "spec", "features", "tasks", "construcao", "testes", "deploy", "manutencao"]
 FASES_NOME = {
     "entrada": "Entrada", "entrevista": "Entrevista", "spec": "Spec", "features": "Features",
-    "tasks": "Tasks", "construcao": "Construção", "deploy": "Deploy", "manutencao": "Manutenção",
+    "tasks": "Tasks", "construcao": "Construção", "testes": "Testes", "deploy": "Deploy", "manutencao": "Manutenção",
 }
 ESTADOS_FEATURE = ["proposta", "aprovada", "em-andamento", "em-teste", "entregue", "alterada", "descartada"]
 ESTADO_NOME = {
@@ -15,6 +15,10 @@ ESTADO_NOME = {
 }
 MARCAS = {" ": "pendente", "~": "andamento", "x": "feita", "!": "bloqueada"}
 MARCA_DE = {v: k for k, v in MARCAS.items()}
+TESTE_ESTADOS = ["pendente", "em-execucao", "passou", "falhou", "bloqueado", "n-a"]
+TESTE_NOME = {"pendente": "Pendente", "em-execucao": "Em execução", "passou": "Passou", "falhou": "Falhou", "bloqueado": "Bloqueado", "n-a": "Não se aplica"}
+TESTE_QUANDO = ["durante-build", "antes-deploy", "pos-deploy"]
+QUANDO_NOME = {"durante-build": "Durante a construção", "antes-deploy": "Antes do deploy", "pos-deploy": "Depois do deploy"}
 PLACEHOLDER = "(preencher)"
 DEC_INI = "<!-- decisoes:inicio -->"
 DEC_FIM = "<!-- decisoes:fim -->"
@@ -220,6 +224,55 @@ def set_marca_task(md, tid, estado):
     return md[:pos] + MARCA_DE[estado] + md[pos + 1:]
 
 
+# ---------- plano de testes (seção 7) ----------
+TS_RE = re.compile(r"^### (TS-\d+) · (.*)$")
+
+
+def testes(md):
+    """Plano de testes: cada item tem feature, tipo, quando (momento escolhido), modo (autônomo/manual), como, critério, evidência."""
+    out = []
+    atual = None
+    for linha in corpo(md, 7).splitlines():
+        m = TS_RE.match(linha)
+        if m:
+            atual = {"id": m.group(1), "titulo": m.group(2).strip(), "estado": "pendente", "feature": "", "tipo": "", "quando": "antes-deploy",
+                     "modo": "autonomo", "como": "", "criterio": "", "evidencia": "", "motivo_momento": ""}
+            out.append(atual)
+            continue
+        if atual is None:
+            continue
+        mk = re.match(r"^- ([\w_]+):\s*(.*)$", linha)
+        if mk:
+            atual[mk.group(1)] = mk.group(2).strip()
+    return out
+
+
+def _bloco_teste(md, tid):
+    s7 = next((s for s in secoes(md) if s["num"] == 7), None)
+    if not s7:
+        return None
+    sub = mascara(md)[s7["ini"]:s7["fim"]]
+    m = re.search(rf"^### {re.escape(tid)} · .*$", sub, re.M)
+    if not m:
+        return None
+    prox = re.search(r"^### ", sub[m.end():], re.M)
+    fim = m.end() + prox.start() if prox else len(sub)
+    return s7["ini"] + m.start(), s7["ini"] + fim
+
+
+def set_campo_teste(md, tid, campo, valor):
+    pos = _bloco_teste(md, tid)
+    if not pos:
+        raise KeyError(f"teste {tid} não encontrado")
+    bloco = md[pos[0]:pos[1]]
+    if re.search(rf"^- {campo}:", bloco, re.M):
+        bloco = re.sub(rf"^(- {campo}:).*$", lambda m: f"{m.group(1)} {valor}", bloco, count=1, flags=re.M)
+    else:
+        linhas = bloco.split("\n", 1)
+        bloco = linhas[0] + f"\n- {campo}: {valor}\n" + (linhas[1] if len(linhas) > 1 else "")
+    return md[:pos[0]] + bloco + md[pos[1]:]
+
+
 # ---------- change requests e histórico ----------
 CR_RE = re.compile(r"^### (CR-\d+) · (.*)$")
 
@@ -227,7 +280,7 @@ CR_RE = re.compile(r"^### (CR-\d+) · (.*)$")
 def change_requests(md):
     out = []
     atual = None
-    for linha in corpo(md, 7).splitlines():
+    for linha in corpo(md, 8).splitlines():
         m = CR_RE.match(linha)
         if m:
             atual = {"id": m.group(1), "titulo": m.group(2).strip(), "estado": "aberta", "features": [], "motivo": "",
@@ -245,7 +298,7 @@ def change_requests(md):
 
 def historico(md):
     out = []
-    for linha in corpo(md, 8).splitlines():
+    for linha in corpo(md, 9).splitlines():
         m = re.match(r"^- (\d{4}-\d{2}-\d{2}) · (.*)$", linha)
         if m:
             out.append({"data": m.group(1), "texto": m.group(2).strip()})
@@ -254,15 +307,15 @@ def historico(md):
 
 def add_historico(md, texto):
     for s in secoes(md):
-        if s["num"] == 8:
+        if s["num"] == 9:
             corpo8 = md[s["ini"]:s["fim"]].rstrip("\n")
             corpo8 = re.sub(rf"\n?{re.escape(PLACEHOLDER)}\s*$", "", corpo8).rstrip("\n")
             return md[:s["ini"]] + corpo8 + f"\n- {hoje()} · {texto}\n"
-    return md.rstrip("\n") + f"\n\n## 8. Histórico\n\n- {hoje()} · {texto}\n"
+    return md.rstrip("\n") + f"\n\n## 9. Histórico\n\n- {hoje()} · {texto}\n"
 
 
 _DEF = {
-    "F": r"^### F-(\d+) ·", "CR": r"^### CR-(\d+) ·", "T": r"^  - \[[ ~x!]\] T-(\d+) ·", "E": r"^- E(\d+) ·",
+    "F": r"^### F-(\d+) ·", "CR": r"^### CR-(\d+) ·", "TS": r"^### TS-(\d+) ·", "T": r"^  - \[[ ~x!]\] T-(\d+) ·", "E": r"^- E(\d+) ·",
 }
 
 
