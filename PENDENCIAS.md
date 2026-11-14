@@ -42,7 +42,6 @@ Limites do ensaio: deploy simulado (sem provedor, domínio ou HTTPS reais), acei
 
 ## Do usuário (só ele pode fazer)
 
-- [ ] **Revogar o token do Netlify** que foi colado no chat; guardar o novo só pelo formulário seguro (`request_credential`, host `api.netlify.com`)
 - [ ] Testar o link do cliente com **outra pessoa, em outro celular**
 - [ ] Testar **upload de arquivo real** pela página do cliente (limite 8 MB) e conferir como o arquivo é baixado
 - [ ] Conferir os **limites do plano gratuito do Netlify** (envios de formulário por mês, uploads)
@@ -57,6 +56,7 @@ Limites do ensaio: deploy simulado (sem provedor, domínio ou HTTPS reais), acei
 
 ## Histórico de versões (resumo)
 
+- 2026-11-14: token do Netlify colado no chat foi revogado pelo usuário (pendência encerrada)
 - 0.7.1: gate da CR, `rodar-teste`, `n-a` no checklist, `ready` com features alteradas, lições de smoke pós-deploy
 - 0.7.0: abas Deploy e Cliente, seção 8 Deploy no SPEC.md (Change requests = 9, Histórico = 10), `migrar`, aviso de privacidade
 - 0.6.x: controle total da lista do cliente (caixa única, reabrir, sugestões), painel por abas, testes por momento
