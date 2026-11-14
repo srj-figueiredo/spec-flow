@@ -34,7 +34,7 @@ Limites do ensaio: deploy simulado (sem provedor, domínio ou HTTPS reais), acei
 
 Anotados pelo usuário enquanto o primeiro projeto real roda no chat novo. Fazer **um ajuste final em conjunto** depois que o projeto estiver andando. Não mexer antes, salvo se o usuário pedir.
 
-- [ ] **1. Onboarding de instalação.** Ao instalar a skill pela primeira vez, o Claude fez duas perguntas logo de cara. A skill deve guiar quem instala: dizer o que precisa ser preparado no ambiente (repositório, permissões, token do Netlify via formulário seguro, etc.) antes de começar. A mensagem do outro chat com as duas perguntas será colada pelo usuário na próxima mensagem, para entendermos o que exatamente perguntou.
+- [ ] **1. Onboarding de instalação.** Ao instalar a skill pela primeira vez, o Claude fez duas perguntas logo de cara. A skill deve guiar quem instala: dizer o que precisa ser preparado no ambiente (repositório, permissões, token do Netlify via formulário seguro, etc.) antes de começar. As duas perguntas feitas no chat novo foram: (a) **onde criar o projeto** (repositório separado ou subpasta) e (b) **se pode seguir com "app web, entrevista média"** (tipo e profundidade). O onboarding deve resolver as duas sem perguntar de forma solta: explicar a recomendação (um repositório por projeto, na raiz; tipo e profundidade inferidos do escopo, com confirmação em uma linha) e listar o que o usuário precisa preparar antes (criar o repositório no GitHub e anexá-lo à sessão, credencial do Netlify pelo formulário seguro). Pendente: ver se a mensagem completa do outro chat traz mais algum detalhe.
 
 ## Do Claude (código e documentação)
 
