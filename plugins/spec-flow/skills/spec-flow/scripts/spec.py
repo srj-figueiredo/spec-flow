@@ -446,6 +446,10 @@ def cmd_cliente(a, raiz):
     opcoes = a.opt if a.opt else neg.get("o", [])
     if a.sugerir:
         p["neg"] = {"q": texto, "o": opcoes, "sugerida": True}
+        if p.get("selecao_cliente") == "dispensada":
+            salvar_entrev(raiz, e)
+            print(f"{a.id}: o usuário DISPENSOU a sugestão de enviar esta pergunta ao cliente; mantive o texto, sem marcar de novo.")
+            return
         p["selecao_cliente"] = "sugerida"
         salvar_entrev(raiz, e)
         print(f"{a.id}: marcada como SUGERIDA para o cliente (você decide se direciona).")
@@ -817,6 +821,8 @@ def _aplicar_cliente(p, d):
         return False
     if d.get("ativa") is False:
         p.pop("cliente", None)
+        if d.get("dispensada"):  # o usuário revogou a minha sugestão de enviar esta pergunta ao cliente
+            p["selecao_cliente"] = "dispensada"
         return True
     p["cliente"] = {"ativa": True, "texto": d.get("texto", ""), "opcoes": [x for x in d.get("opcoes", []) if x],
                     "em": d.get("em", S.agora()), "arquivo": bool(d.get("arquivo")),
@@ -828,6 +834,7 @@ def cmd_import(a, raiz):
     md, e = carregar(raiz)
     bruto = json.load(open(a.arquivo, encoding="utf-8"))
     novas = antigas = 0
+    lista_antes = sorted(x["id"] for x in _cliente_ativas(e))
     for qid, d, colecao in _itens_import(bruto):
         p = next((x for x in e["perguntas"] if x["id"] == qid), None)
         if not p or not isinstance(d, dict):
@@ -871,6 +878,10 @@ def cmd_import(a, raiz):
     sync_decisoes(raiz)
     c = contagem(carregar(raiz)[1])
     print(f"{novas} respostas importadas ({antigas} já estavam atualizadas). Restam {c['pendentes']} pendentes.")
+    e2 = carregar(raiz)[1]
+    if sorted(x["id"] for x in _cliente_ativas(e2)) != lista_antes:
+        print("⚠ A LISTA DO CLIENTE MUDOU (o usuário direcionou ou revogou perguntas). Rode `export-cliente` e republique a página "
+              "do cliente (mesmo site) para ela refletir as escolhas dele.")
 
 
 def cmd_reabrir(a, raiz):
@@ -1303,6 +1314,9 @@ def cmd_lista_cliente(a, raiz):
         print(f"  [{p['id']}] {p['neg']['q']}")
     if not a.todas and len(outras) > 8:
         print(f"  ... e mais {len(outras) - 8} (use --todas para listar)")
+    disp = [p["id"] for p in visiveis(e) if p.get("selecao_cliente") == "dispensada"]
+    if disp:
+        print(f"\nSugestões que o usuário DISPENSOU ({len(disp)}): {', '.join(disp)}")
     print("\nAprovando: `cliente-lote --sugeridas` ou `cliente-lote --ids A,B`; depois `export-cliente`. "
           "Para mudar a seleção: `sugerir-cliente --ids A,B` / `--remover`.")
 
@@ -1322,6 +1336,9 @@ def cmd_sugerir_cliente(a, raiz):
             continue
         if not (p.get("neg") or {}).get("q"):
             die(f"{pid} não tem texto em linguagem de negócio: use `cliente {pid} --sugerir --texto \"...\"`")
+        if p.get("selecao_cliente") == "dispensada" and not a.forcar:
+            print(f"  {pid}: o usuário DISPENSOU esta sugestão; não vou marcar de novo (use --forcar se ele pediu).")
+            continue
         p["selecao_cliente"] = "sugerida"
         n += 1
     salvar_entrev(raiz, e)
@@ -1557,6 +1574,7 @@ def main():
     p.set_defaults(f=cmd_lista_cliente)
     p = sp.add_parser("sugerir-cliente", help="marca na lista completa as perguntas que eu sugiro para o cliente (texto pronto)")
     p.add_argument("--ids", required=True)
+    p.add_argument("--forcar", action="store_true", help="marca mesmo as que o usuário dispensou (só se ele pedir)")
     p.add_argument("--remover", action="store_true")
     p.set_defaults(f=cmd_sugerir_cliente)
     p = sp.add_parser("cliente-lote", help="direciona várias perguntas ao cliente de uma vez, com as sugestões em linguagem de negócio")

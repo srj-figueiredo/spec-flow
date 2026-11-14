@@ -174,7 +174,8 @@ def _tab_entrevista(e, ent):
                 extra += f'<div class="hs">🔒 Cliente ({esc(rc["em"][:10])}{" · " + esc(rc["respondente"]) if rc.get("respondente") else ""}): {esc(" · ".join(CH.resumo(rc)))}</div>'
             for hs in p.get("historico") or []:
                 extra += f'<div class="hs">Decisão anterior ({esc(hs["substituida_em"][:10])}): {esc(hs.get("texto", ""))}</div>'
-            tag = '<span class="chip">escopo</span> ' if p.get("origem") == "escopo" else ""
+            tag = ('<span class="chip">escopo</span> ' if p.get("origem") == "escopo" else "") + (
+                '<span class="chip ts-n-a">você dispensou o envio ao cliente</span> ' if p.get("selecao_cliente") == "dispensada" else "")
             h += f'<tr><td>{esc(p["id"])}</td><td>{tag}{esc(p["q"])}</td><td class="dec">{dec}{extra}</td><td>{sit}</td></tr>'
         h += "</table></div>"
     return h + "</div>"

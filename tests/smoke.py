@@ -459,6 +459,32 @@ def teste_independencia_e_reabrir():
     verifica("painel mostra a resposta provisória junto do aguardando", (sp(d2, "render")[0] and "Sua resposta (provisória)" in ler(os.path.join(d2, "docs", "painel.html"))))
 
 
+def teste_controle_total():
+    print("• controle total: dispensar sugestão, revogar envio, avisos de lista")
+    d = novo(prof="m")
+    sp(d, "sugerir-cliente", "--ids", "N-03,N-04")
+    docs = [{"id": "N-03", "colecao": "clientes", "data": {"ativa": False, "dispensada": True, "em": "2099-01-01T00:00:00Z"}}]
+    json.dump(docs, open(os.path.join(d, "db.json"), "w"))
+    ok, out = sp(d, "import-answers", "db.json")
+    verifica("import: o usuário DISPENSA a minha sugestão", ok and pergunta(d, "N-03")["selecao_cliente"] == "dispensada" and pergunta(d, "N-04")["selecao_cliente"] == "sugerida")
+    verifica("dispensada some das sugeridas e aparece como dispensada na lista", json.loads(sp(d, "lista-cliente", "--json")[1])["sugeridas"][0]["id"] == "N-04" and "DISPENSOU" in sp(d, "lista-cliente")[1])
+    ok, out = sp(d, "sugerir-cliente", "--ids", "N-03")
+    verifica("não marco de novo o que o usuário dispensou", pergunta(d, "N-03")["selecao_cliente"] == "dispensada" and "DISPENSOU" in out, out)
+    verifica("--forcar marca de novo (só se o usuário pedir)", sp(d, "sugerir-cliente", "--ids", "N-03", "--forcar")[0] and pergunta(d, "N-03")["selecao_cliente"] == "sugerida")
+    ok, out = sp(d, "cliente", "N-03", "--sugerir", "--texto", "Como saberá?")
+    sp(d, "cliente-lote", "--ids", "N-04")
+    docs = [{"id": "N-04", "colecao": "clientes", "data": {"ativa": False, "em": "2099-03-01T00:00:00Z"}}]
+    json.dump(docs, open(os.path.join(d, "db2.json"), "w"))
+    ok, out = sp(d, "import-answers", "db2.json")
+    verifica("revogar o envio (mesmo o que o usuário mandou) tira a pergunta do cliente", ok and not (pergunta(d, "N-04").get("cliente") or {}).get("ativa"))
+    verifica("import avisa que a lista do cliente mudou e é preciso republicar", "LISTA DO CLIENTE MUDOU" in out, out)
+    verifica("revogada fora da página do cliente", sp(d, "cliente", "N-05", "--texto", "Quem aprova?")[0] and "t_N-04" not in (sp(d, "export-cliente")[0] and ler(os.path.join(d, ".spec", "cliente", "index.html"))))
+    docs = [{"id": "N-05", "colecao": "clientes", "data": {"ativa": True, "texto": "Quem aprova? (editei)", "em": "2099-04-01T00:00:00Z"}}]
+    json.dump(docs, open(os.path.join(d, "db3.json"), "w"))
+    sp(d, "import-answers", "db3.json")
+    verifica("editar a pergunta do cliente antes de ele responder vale", pergunta(d, "N-05")["cliente"]["texto"] == "Quem aprova? (editei)")
+
+
 def teste_celular_e_render(d):
     print("• página do celular, importação de respostas e render")
     q = pergunta(d, "N-01")
@@ -523,6 +549,7 @@ def main():
     teste_features_tasks(d)
     teste_fluxo_guiado()
     teste_independencia_e_reabrir()
+    teste_controle_total()
     dc = teste_cliente(d)
     teste_celular_e_render(dc)
     teste_netlify_offline()

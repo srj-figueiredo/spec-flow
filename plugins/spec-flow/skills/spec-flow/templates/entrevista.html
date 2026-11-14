@@ -30,6 +30,11 @@ main{max-width:720px;margin:0 auto;padding:14px 12px 120px}
 .pin{color:#6250d6;font-weight:600}.sugtxt{font-size:.88rem;background:#efecfb;border-radius:10px;padding:8px 10px;margin:8px 0 0}@media (prefers-color-scheme:dark){.sugtxt{background:#2a2447}.pin{color:#9085e9}}
 .chip.pinchip{border-color:#6250d6;color:#6250d6}.chip.pinchip[aria-pressed=true]{background:#6250d6;border-color:#6250d6;color:#fff}.btn.dirq{border-color:#6250d6;color:#6250d6;font-weight:600}
 .minha{font-size:.9rem;background:var(--blue-soft);border-radius:10px;padding:8px 10px;margin:8px 0 0}.btn.mini{min-height:32px;padding:3px 10px;font-size:.8rem;margin-left:6px}
+.mod{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:30;padding:16px}.mod[hidden]{display:none}
+.modbox{background:var(--surface);border-radius:16px;max-width:440px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.modbox h2{margin:0 0 8px;font-size:1.05rem}.modbox p{margin:0 0 14px;font-size:.98rem;color:var(--ink2)}.modbox .acts{margin:0;justify-content:flex-end}
+.btn.danger{background:#d03b3b;border-color:#d03b3b;color:#fff;font-weight:600}
+.salvo{font-size:.8rem;color:var(--muted);margin-top:2px}.salvo.ok{color:var(--good)}.fim .salvo{margin:0;align-self:center}
 .chk{display:flex;gap:8px;align-items:flex-start;font-size:.85rem;color:var(--ink2);margin:8px 0}.chk input{margin-top:3px}
 .espera{font-size:.88rem;background:#efecfb;border-radius:10px;padding:8px 10px;margin:10px 0 0}@media (prefers-color-scheme:dark){.espera{background:#2a2447}}
 .tag{font-size:.78rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -63,11 +68,14 @@ textarea:focus{outline:2px solid var(--blue);border-color:var(--blue)}
 <header>
   <h1 id="titulo">Entrevista de requisitos</h1>
   <div class="cnt"><span id="c1"></span><span id="c2"></span></div>
+  <div class="salvo" id="salvo"></div>
   <div class="bar" id="barra"></div>
   <nav class="chips" id="chips" aria-label="Blocos"></nav>
 </header>
 <main id="main"></main>
 <div class="fim" id="fim"></div>
+<div class="mod" id="modal" role="dialog" aria-modal="true" aria-labelledby="modt" hidden><div class="modbox"><h2 id="modt"></h2><p id="modmsg"></p>
+  <div class="acts"><button class="btn" id="modno" type="button">Cancelar</button><button class="btn danger" id="modok" type="button">Sim</button></div></div></div>
 <script>
 const D = /*__DADOS__*/null;
 (function(){
@@ -81,7 +89,8 @@ let filtroSug=false, blocoAtual=null, db=null, dict=null, conectado=false, aviso
 const LS="specflow:"+D.projeto;
 try{const x=JSON.parse(localStorage.getItem(LS)||"{}"),R=x.r||(x.c?{}:x),C=x.c||{};
   for(const k in R){if(!resp[k]||(R[k].em||"")>(resp[k].em||""))resp[k]=R[k];}
-  for(const k in C){if(!cli[k]||(C[k].em||"")>(cli[k].em||""))cli[k]=C[k];}}catch(e){}
+  for(const k in C){if(!cli[k]||(C[k].em||"")>(cli[k].em||""))cli[k]=C[k];
+    if(C[k]&&C[k].dispensada){const q0=ags.find(x=>x.id===k);if(q0)q0.selecao_cliente="dispensada";}}}catch(e){}
 const agora=()=>new Date().toISOString().replace(/\.\d+Z$/,"Z");
 const esc=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function textoResp(q){const r=resp[q.id];if(!r)return"";if(r.tipo==="opcao")return(r.indices||[]).map(i=>q.o[i-1]?q.o[i-1][0]:"").join("; ")+" "+(r.texto||"");if(r.tipo==="livre")return r.texto||"";return"";}
@@ -110,6 +119,9 @@ function enviar(id,doc,col){
 function direcionar(q,txt,ops,arq){const em=agora();cli[q.id]={ativa:true,texto:txt,opcoes:ops,em,arquivo:!!arq};q._dir=false;guardarLocal();
   enviar(q.id,{ativa:true,texto:txt,opcoes:ops,em,arquivo:!!arq},"clientes");renderTudo(q.id);}
 function desdirecionar(q){const em=agora();cli[q.id]={ativa:false,em};q._dir=false;guardarLocal();enviar(q.id,{ativa:false,em},"clientes");renderTudo(q.id);}
+/* dispensar: o usuário revoga a MINHA sugestão de enviar esta pergunta ao cliente */
+function dispensar(q){const em=agora();q.selecao_cliente="dispensada";cli[q.id]={ativa:false,em,dispensada:true};q._dir=false;guardarLocal();
+  enviar(q.id,{ativa:false,dispensada:true,em},"clientes");renderTudo(q.id);}
 /* reabrir: a resposta sai (o Claude guarda a anterior no histórico) e a pergunta volta a pendente; o direcionamento ao cliente continua */
 function reabrir(q){const em=agora();delete resp[q.id];q._abrir=false;guardarLocal();enviar(q.id,{tipo:"reaberta",em});renderTudo(q.id);}
 function gravar(id,dado,imediato){
@@ -152,12 +164,13 @@ function card(q,pos,total){
   const sel=selecionada(q);
   const podeDir=!cliRespondeu(q);
   const quick=(neg.q&&podeDir&&!cliAtivo(q))?'<button class="btn dirq" data-dirq="'+q.id+'">Enviar já, com o texto pronto</button>':"";
-  const sugtxt=sel?'<p class="sugtxt">📌 Sugeri esta para o cliente. Texto pronto: “'+esc(neg.q)+'”</p>':"";
+  const sugtxt=sel?'<p class="sugtxt">📌 Sugeri esta para o cliente. Texto pronto: “'+esc(neg.q)+'” <button class="btn mini" data-disp="'+q.id+'">Não enviar ao cliente</button></p>':
+    (q.selecao_cliente==="dispensada"&&!cliAtivo(q)&&!cliRespondeu(q)?'<p class="sugtxt">Você dispensou a sugestão de enviar esta pergunta ao cliente. Pode mudar de ideia quando quiser com “Enviar já, com o texto pronto”.</p>':"");
   const dirBtn=podeDir?'<button class="btn dir" data-dir="'+q.id+'" aria-pressed="'+(e==="w"||!!q._dir)+'">Direcionar ao dono do negócio'+(!(cl&&cl.ativa)?' <small>(já abre com a pergunta pronta)</small>':'')+'</button>':"";
   const painel=(q._dir&&podeDir)?'<div class="dirbox"><p class="sugtxt">📝 '+(neg.q||(cl&&cl.ativa)?'Pergunta pronta, escrita em linguagem de negócio. Edite como quiser antes de enviar.':'Rascunho automático (esta pergunta não tinha texto pronto): revise antes de enviar.')+'</p><label>Pergunta que o dono do negócio vai ver</label><textarea data-dtxt="'+q.id+'">'+esc((cl&&cl.ativa&&cl.texto)||neg.q||("Em palavras simples, sobre o seu negócio: "+q.q))+'</textarea>'+
     '<label>Opções de resposta para ele, uma por linha (opcional)</label><textarea data-dopt="'+q.id+'">'+esc(((cl&&cl.ativa&&cl.opcoes)||neg.o||[]).join("\n"))+'</textarea>'+
     '<label class="chk"><input type="checkbox" data-darq="'+q.id+'"'+((cl&&cl.arquivo)?" checked":"")+'> O cliente precisa enviar um arquivo (máx. 8 MB; maior que isso o desenvolvedor pega depois)</label>'+(q.design?'<p class="espera">🎨 Pergunta de design: ao gerar a página do cliente, o Claude acrescenta opções visuais e links de referência.</p>':"")+'<div class="acts"><button class="btn pri" data-dir-ok="'+q.id+'">'+(e==="w"?"Atualizar pergunta":"Enviar ao cliente")+'</button>'+(e==="w"?'<button class="btn" data-dir-rm="'+q.id+'">Não direcionar mais</button>':"")+'</div></div>':"";
-  const espera=e==="w"?'<p class="espera">⏳ Direcionada ao dono do negócio: “'+esc(cl.texto)+'”</p>'+"":"";
+  const espera=e==="w"?'<p class="espera">⏳ Direcionada ao dono do negócio: “'+esc(cl.texto)+'”'+(podeDir?' <button class="btn mini" data-dir-rm="'+q.id+'">Revogar envio</button>':"")+'</p>'+"":"";
   const cresp=cliRespondeu(q)&&q.resposta_cliente?'<p class="dica">✎ <b>Cliente respondeu:</b> '+esc(((q.resposta_cliente.opcao||"")+" "+(q.resposta_cliente.texto||"")).trim())+(e==="w"?' <b>Traduza com o Claude para virar decisão.</b>':' O Claude confere se isso muda a sua decisão.')+'</p>':"";
   const resumoR=r?(r.tipo==="bypass"?("pulada"+(r.texto?": "+esc(r.texto):"")):esc(textoResp(q).trim()||"(sem texto)")):"";
   const minha=r?'<p class="minha">✓ <b>'+(r.tipo==="bypass"?"Você pulou":"Sua resposta")+':</b> '+resumoR+'<button class="btn mini" data-reabrir="'+q.id+'">↺ Reabrir pergunta</button>'+
@@ -172,6 +185,12 @@ function card(q,pos,total){
     (abrirTxt||livre||e==="b"?'<textarea data-txt="'+q.id+'" placeholder="'+(e==="b"?"Motivo ou risco de deixar para depois (opcional)":"Escreva a sua resposta")+'">'+esc(r?(r.texto||""):"")+'</textarea>':"")+
     '<div class="st '+(stMap[q.id]?stMap[q.id][1]:"")+'" data-st="'+q.id+'">'+esc(stMap[q.id]?stMap[q.id][0]:"")+'</div></section>';
 }
+function confirmar(titulo,msg,okTxt){return new Promise(res=>{
+  const m=document.getElementById("modal"),ok=document.getElementById("modok"),no=document.getElementById("modno");
+  document.getElementById("modt").textContent=titulo;document.getElementById("modmsg").textContent=msg;ok.textContent=okTxt||"Sim";m.hidden=false;no.focus();
+  const fim=v=>{m.hidden=true;ok.onclick=no.onclick=m.onclick=null;document.removeEventListener("keydown",tecla);res(v);};
+  const tecla=e=>{if(e.key==="Escape")fim(false);};
+  ok.onclick=()=>fim(true);no.onclick=()=>fim(false);m.onclick=e=>{if(e.target===m)fim(false);};document.addEventListener("keydown",tecla);});}
 function digitando(el){const a=document.activeElement;return!!(a&&a.tagName==="TEXTAREA"&&el&&el.contains(a));}
 function renderBloco(){
   const v=vis(),qs=filtroSug?v.filter(selecionada):v.filter(q=>q.bloco===blocoAtual);
@@ -181,8 +200,10 @@ function renderBloco(){
 }
 function rodape(){
   const c=contagem();
+  const salvo=$("#salvo");
+  if(salvo){salvo.className="salvo"+(db&&conectado?" ok":"");salvo.textContent=!db?"Sem nuvem: as respostas ficam só neste aparelho":conectado?"💾 Salvo automaticamente · tudo pode ser mudado a qualquer momento":"Conectando ao salvamento…";}
   $("#fim").innerHTML=(c.p||c.x)?'<button class="btn pri" data-prox="1">Próxima pendente ↓</button>':
-    '<button class="btn pri" data-copiar="1">'+(c.w?"Falta só o cliente · ":"Tudo respondido · ")+(conectado?'volte ao Claude Code e diga “retomar”':'Copiar respostas')+'</button>';
+    (!db?'<button class="btn pri" data-copiar="1">Copiar respostas (sem nuvem)</button>':'<span class="salvo ok">✓ Nada pendente · tudo salvo. Você pode mudar qualquer resposta quando quiser.</span>');
 }
 function renderTudo(qid){cabecalho();
   const el=qid&&document.querySelector('[data-card="'+qid+'"]');
@@ -192,14 +213,19 @@ function renderTudo(qid){cabecalho();
   rodape();}
 
 /* ---------- eventos ---------- */
-document.addEventListener("click",ev=>{
+document.addEventListener("click",async ev=>{
   const t=ev.target.closest("button");if(!t)return;
   if(t.dataset.pin){filtroSug=!filtroSug;cabecalho();renderBloco();window.scrollTo({top:0});return;}
-  if(t.dataset.reabrir){reabrir(ags.find(x=>x.id===t.dataset.reabrir));return;}
+  if(t.dataset.reabrir){const q=ags.find(x=>x.id===t.dataset.reabrir),r=resp[q.id];
+    if(r&&r.tipo!=="bypass"){const ok=await confirmar("Reabrir esta pergunta?","Você já respondeu: “"+(textoResp(q).trim()||"(sem texto)")+"”. Tem certeza que quer reabri-la? A resposta atual fica guardada no histórico e você poderá responder de novo.","Sim, reabrir");if(!ok)return;}
+    reabrir(q);return;}
+  if(t.dataset.disp){dispensar(ags.find(x=>x.id===t.dataset.disp));return;}
   if(t.dataset.dirq){const q=ags.find(x=>x.id===t.dataset.dirq);direcionar(q,q.neg.q,q.neg.o||[],false);if(filtroSug){cabecalho();renderBloco();}return;}
   if(t.dataset.b){filtroSug=false;blocoAtual=t.dataset.b;cabecalho();renderBloco();window.scrollTo({top:0});return;}
   if(t.dataset.n){const q=ags.find(x=>x.id===t.dataset.q);escolher(q,+t.dataset.n);return;}
-  if(t.dataset.pular){pular(ags.find(x=>x.id===t.dataset.pular));return;}
+  if(t.dataset.pular){const q=ags.find(x=>x.id===t.dataset.pular),a=resp[q.id];
+    if(a&&a.tipo!=="bypass"){const ok=await confirmar("Pular esta pergunta?","Você já respondeu: “"+(textoResp(q).trim()||"(sem texto)")+"”. Pular vai substituir essa resposta (ela fica guardada no histórico). Continuar?","Sim, pular");if(!ok)return;}
+    pular(q);return;}
   if(t.dataset.outra){const q=ags.find(x=>x.id===t.dataset.outra);q._abrir=true;
     const c=document.querySelector('[data-card="'+q.id+'"]');if(c&&!c.querySelector("textarea")){const ta=document.createElement("textarea");ta.dataset.txt=q.id;ta.placeholder="Escreva a sua resposta";c.querySelector(".st").before(ta);ta.focus();}else if(c)c.querySelector("textarea").focus();return;}
   if(t.dataset.mic){iniciarDitado(t.dataset.mic,t);return;}
@@ -219,10 +245,11 @@ document.addEventListener("input",ev=>{
   if(r&&r.tipo==="opcao")d={tipo:"opcao",indices:r.indices,texto:txt,em:agora()};
   else if(r&&r.tipo==="bypass")d={tipo:"bypass",texto:txt,em:agora()};
   else if(txt.trim())d={tipo:"livre",texto:txt,em:agora()};
-  else{if(resp[q.id])reabrir(q);return;}
+  else{return;}
   resp[q.id]=d;guardarLocal();cabecalho();rodape();setSt(q.id,"Digitando…","");gravar.call(null,q.id,d,false);
 });
 document.addEventListener("focusout",ev=>{if(ev.target.matches&&ev.target.matches("textarea[data-txt]")){const id=ev.target.dataset.txt;
+  if(!ev.target.value.trim()&&resp[id]&&resp[id].tipo==="livre"){setTimeout(()=>renderTudo(id),0);return;} /* texto apagado: a resposta continua; para limpar, use Reabrir */
   if(timers[id]){clearTimeout(timers[id]);gravar(id,resp[id]||{tipo:"livre",texto:ev.target.value,em:agora()},true);}}});
 
 function copiar(btn){
@@ -242,7 +269,8 @@ function iniciarDitado(id,btn){
 
 /* ---------- nuvem (opcional) ---------- */
 function mesclarCli(id,d){if(!d||!ags.some(q=>q.id===id))return false;const c=cli[id];if(c&&(c.em||"")>=(d.em||""))return false;
-  cli[id]={ativa:d.ativa!==false,texto:d.texto||"",opcoes:d.opcoes||[],em:d.em,arquivo:!!d.arquivo};return true;}
+  cli[id]={ativa:d.ativa!==false,texto:d.texto||"",opcoes:d.opcoes||[],em:d.em,arquivo:!!d.arquivo,dispensada:!!d.dispensada};
+  const q=ags.find(x=>x.id===id);if(q&&d.dispensada)q.selecao_cliente="dispensada";return true;}
 function mesclar(id,d){if(!d||!ags.some(q=>q.id===id))return false;
   if(d.tipo==="reaberta"){const a=resp[id];if(a&&(a.em||"")<(d.em||"")){delete resp[id];return true;}return false;}
   if(d.tipo==="cliente"){const c=cli[id];if(c&&(c.em||"")>=(d.em||""))return false;cli[id]={ativa:d.ativa!==false,texto:d.texto||"",opcoes:d.opcoes||[],em:d.em};return true;}

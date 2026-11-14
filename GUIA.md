@@ -52,6 +52,17 @@ Diga: *"quero começar um projeto com a spec-flow"*. O Claude cria o projeto (ti
 ### A lista inicial do cliente
 Depois de montar o plano, o Claude **propõe a primeira lista para o dono do negócio**: separa o que é de negócio e reescreve em linguagem de negócio (com opções visuais nas de design). Na lista completa, **o que ele pré-selecionou aparece marcado com 📌**, com o texto pronto à vista, e há um filtro "📌 Sugeridas p/ cliente". **A escolha final é sua**, pergunta a pergunta: **Enviar ao cliente (texto sugerido)** com um toque, **Direcionar ao dono do negócio** para editar o texto, mandar uma que ele não marcou (qualquer pergunta com texto pronto serve) ou não mandar uma que ele marcou. Pedir: *"mostra a lista do cliente"*.
 
+### Controle total na sua página
+Sua página **não é um formulário para enviar**: é um painel ao vivo, e **cada toque é salvo na hora**. Você pode mudar qualquer coisa, a qualquer momento:
+
+- **Reabrir** qualquer resposta, com pop-up de confirmação ("você já respondeu, tem certeza?"). Pular por cima de uma resposta também pede confirmação.
+- **Revogar o que o Claude marcou** para o cliente (📌 → **Não enviar ao cliente**), e ele não remarca depois.
+- **Revogar o que você mesmo mandou** ao cliente (**Revogar envio**), enquanto o cliente não respondeu.
+- **Marcar para o cliente** qualquer pergunta que o Claude não marcou, com a pergunta já pronta e editável.
+- Quando você retoma com o Claude, ele lê o estado **atual**; se a lista do cliente mudou, ele atualiza a página do cliente no mesmo endereço.
+
+Só a página do **cliente** é imutável depois de respondida.
+
 ### Responder e direcionar são independentes, e dá para reabrir
 Uma pergunta **marcada para o cliente sempre vai para a página dele**, mesmo que você a responda ou pule. Sua resposta fica **provisória** (o painel mostra "Sua resposta provisória + aguardando cliente") e a resposta do cliente pode mudá-la. A entrevista só fecha quando o cliente responde, ou com bypass. Em qualquer pergunta há **↺ Reabrir pergunta**: a resposta sai, a anterior vai para o histórico e o envio ao cliente continua. Você também pode direcionar depois de responder, sem perder a resposta.
 
