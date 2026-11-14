@@ -29,6 +29,11 @@ textarea:focus,input[type=text]:focus{outline:2px solid var(--blue);border-color
 .ok{display:none;background:var(--surface);border:1px solid var(--good);border-radius:16px;padding:18px;text-align:center}
 .ok b{color:var(--good)}
 .erro{display:none;color:#d03b3b;font-size:.9rem;margin-top:8px;text-align:center}
+.sec{font-size:1.1rem;margin:22px 0 10px}.rod{font-size:.95rem;color:var(--ink2);margin:18px 0 8px}
+.reg .nota2{font-size:.88rem;color:var(--muted);margin:0 0 6px}
+.rc{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--good);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.rc .q{margin:0 0 6px;font-size:1rem}.rc .a{margin:0 0 6px;white-space:pre-wrap}.rc .meta{font-size:.78rem;color:var(--muted)}
+.cod{font-size:.8rem;color:var(--muted);text-align:right;margin:4px 0 14px}
 .hp{position:absolute;left:-9999px;height:0;overflow:hidden}
 </style>
 </head>
@@ -37,7 +42,8 @@ textarea:focus,input[type=text]:focus{outline:2px solid var(--blue);border-color
 <h1>__TITULO__</h1>
 <p class="intro">__INTRO__</p>
 <div class="ok" id="ok"><b>Respostas enviadas. Obrigado!</b><br>Pode fechar esta página. Se quiser complementar, é só abrir o link de novo e enviar mais uma vez.</div>
-<form id="f" name="entrevista" method="POST" action="/obrigado" data-netlify="true" netlify-honeypot="bot-field">
+__REGISTRO__
+<form id="f" name="entrevista" method="POST" action="/obrigado" data-netlify="true" netlify-honeypot="bot-field"__FORM_HIDDEN__>
 <input type="hidden" name="form-name" value="entrevista">
 <input type="hidden" name="projeto" value="__PROJETO__">
 <p class="hp"><label>Não preencha: <input name="bot-field"></label></p>

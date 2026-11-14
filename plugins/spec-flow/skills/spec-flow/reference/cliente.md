@@ -31,12 +31,24 @@ Pré-requisito: token do Netlify (nuvem: credencial salva para `api.netlify.com`
 
 Limitação da nuvem: a rede do ambiente não alcança `*.netlify.app`, então você não consegue enviar um teste ao formulário por conta própria. Peça ao usuário para testar pelo celular.
 
+## A página é um registro acumulativo (somente leitura)
+
+A mesma página serve de **registro histórico** do cliente e de **formalização** das definições:
+
+- **Respostas já dadas** aparecem no topo, em texto (não em campo), agrupadas por **rodada**, com data, nome de quem respondeu e um **código de verificação** do conteúdo. O cliente não consegue alterá-las.
+- **Perguntas novas** aparecem embaixo, com campos para responder. A cada nova rodada, rode `SPEC export-cliente` e `NETLIFY deploy` no mesmo site: o registro cresce e nada some.
+- Se o cliente reenviar a mesma pergunta (por exemplo, com a página antiga aberta), a nova resposta entra como **complemento**; a original continua intacta.
+- O mesmo registro, com o mesmo código, é copiado para o `SPEC.md` (bloco de decisões, "Registro das respostas do cliente"), que continua a fonte de verdade.
+- Sem perguntas novas, `export-cliente` gera a página só com o registro (a formalização final).
+
+Limite honesto: "somente leitura" vale para o cliente. Quem controla a conta do Netlify ainda poderia editar o site. O código de verificação (calculado sobre perguntas, respostas e datas) permite detectar qualquer alteração depois, comparando com o do `SPEC.md`, e os envios originais ficam guardados no Netlify.
+
 ## Receber e traduzir as respostas
 
 1. `NETLIFY submissions <id> --form entrevista > envios.json` (todos os envios, do mais antigo ao mais novo).
-2. `SPEC import-cliente envios.json`: cada resposta vira `resposta_cliente` na pergunta, que continua em "aguardando cliente" até você traduzir.
+2. `SPEC import-cliente envios.json`: cada resposta é **acrescentada** ao registro da pergunta (nunca sobrescreve) e a pergunta continua em "aguardando cliente" até você traduzir.
 3. Para cada resposta: leia o que o cliente disse (palavras dele), proponha a **decisão técnica** e o motivo, e mostre ao usuário. Com o "ok": `SPEC answer <ID> --text "<decisão técnica>"` (ou `--opt N` se uma opção cobre). Dúvida do cliente que gera pergunta nova: `SPEC add` e, se for de negócio, `SPEC cliente`.
-4. Se for preciso perguntar mais ao cliente, `SPEC export-cliente` de novo (só entram as ainda não respondidas) e `NETLIFY deploy` no mesmo site.
+4. Se for preciso perguntar mais ao cliente (aprofundamento), crie a pergunta (`SPEC add` + `SPEC cliente`), rode `SPEC export-cliente` e `NETLIFY deploy` no mesmo site: abre-se a próxima rodada.
 
 ## Formalização por e-mail
 

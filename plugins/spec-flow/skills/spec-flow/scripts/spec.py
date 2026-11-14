@@ -5,6 +5,8 @@ Uso: python3 spec.py <comando> [opções]      (veja `spec.py ajuda`)
 O projeto é localizado subindo pastas até achar SPEC.md (ou use --raiz).
 """
 import argparse
+import datetime
+import hashlib
 import html as html_mod
 import json
 import os
@@ -119,6 +121,10 @@ def contagem(e):
     return c
 
 
+def _uma_linha(t):
+    return re.sub(r"\s+", " ", str(t)).strip()
+
+
 def sync_decisoes(raiz):
     md, e = carregar(raiz)
     if not e:
@@ -155,6 +161,22 @@ def sync_decisoes(raiz):
                 dec, origem = "—", "pendente"
             cel = lambda t: re.sub(r"\s+", " ", str(t)).replace("|", "/")  # noqa: E731
             linhas.append(f"| {p['id']} | {cel(p['q'])} | {cel(dec)} | {origem} |")
+        linhas.append("")
+    reg = _registro(e)
+    if reg:
+        linhas += ["### Registro das respostas do cliente", "",
+                   "Respostas do dono do negócio, nas palavras dele. Somente acréscimo: nada aqui é alterado depois de registrado. "
+                   f"Código do registro: `{_codigo_registro(reg)}`.", ""]
+        rod = None
+        for it in reg:
+            if it["rodada"] != rod:
+                rod = it["rodada"]
+                linhas += [f"**Rodada {rod}**", ""]
+            linhas.append("- " + it["id"] + " · " + _uma_linha(it["pergunta"]))
+            for k, r in enumerate(it["respostas"]):
+                quem = f" · {r['respondente']}" if r.get("respondente") else ""
+                txt = _uma_linha(" ".join(x for x in [r.get("opcao", ""), r.get("texto", "")] if x))
+                linhas.append(f"  - {'resposta' if k == 0 else 'complemento'} ({_fmt(r['em'])}{quem}): {txt}")
         linhas.append("")
     novo = "\n".join(linhas).rstrip() + "\n"
     i, f = md.find(S.DEC_INI), md.find(S.DEC_FIM)
@@ -363,61 +385,136 @@ def cmd_cliente(a, raiz):
 
 
 def _cliente_ativas(e):
+    """Perguntas direcionadas ao cliente que ainda não receberam resposta dele (vão para o formulário)."""
     return [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("resposta")
-            and not p.get("resposta_cliente")]
+            and not p.get("respostas_cliente")]
+
+
+def _fmt(iso):
+    d = datetime.datetime.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+    return d.astimezone(datetime.timezone(datetime.timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M")
+
+
+def _rodada_de(e, pid):
+    for r in e.get("rodadas", []):
+        if pid in r["perguntas"]:
+            return r["n"]
+    return None
+
+
+def _registro(e):
+    """Registro histórico das respostas do cliente (somente acréscimo), agrupável por rodada."""
+    itens = []
+    for p in e["perguntas"]:
+        rs = p.get("respostas_cliente") or []
+        if rs:
+            itens.append({"id": p["id"], "rodada": p.get("rodada_cliente") or 1, "pergunta": rs[0].get("pergunta") or p["q"],
+                          "respostas": sorted(rs, key=lambda x: x["em"])})
+    itens.sort(key=lambda x: (x["rodada"], x["respostas"][0]["em"], x["id"]))
+    return itens
+
+
+def _codigo_registro(itens):
+    canon = json.dumps([[i["id"], i["pergunta"], [[r["em"], r.get("opcao", ""), r.get("texto", "")] for r in i["respostas"]]]
+                        for i in itens], ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:12]
 
 
 def cmd_export_cliente(a, raiz):
-    """Gera .spec/cliente/ (index.html + obrigado.html): a página que o dono do negócio responde."""
+    """Gera .spec/cliente/: página do dono do negócio = registro das respostas anteriores (travado) + novas perguntas."""
     md, e = carregar(raiz)
-    qs = _cliente_ativas(e)
-    if not qs:
+    novas = _cliente_ativas(e)
+    reg = _registro(e)
+    if not novas and not reg:
         die("nenhuma pergunta direcionada ao cliente (use `cliente ID --texto ...`).")
+    rodadas = e.setdefault("rodadas", [])
+    if novas:
+        atual = rodadas[-1] if rodadas else None
+        if not atual or any(next((x for x in e["perguntas"] if x["id"] == pid), {}).get("respostas_cliente") for pid in atual["perguntas"]):
+            atual = {"n": len(rodadas) + 1, "publicada_em": S.agora(), "perguntas": []}
+            rodadas.append(atual)
+        for p in novas:
+            if not any(p["id"] in r["perguntas"] for r in rodadas):
+                atual["perguntas"].append(p["id"])
+        atual["publicada_em"] = S.agora()
+        salvar_entrev(raiz, e)
     esc = html_mod.escape
-    blocos = []
-    for i, p in enumerate(qs, 1):
+    cards = []
+    for i, p in enumerate(novas, 1):
         c = p["cliente"]
         ops = "".join(f'<label class="opt"><input type="radio" name="q_{esc(p["id"])}" value="{esc(o)}"><span>{esc(o)}</span></label>'
                       for o in c.get("opcoes", []))
         rotulo = "Se preferir, explique com suas palavras" if ops else "Sua resposta"
-        blocos.append(f'<section class="card"><div class="n">Pergunta {i} de {len(qs)}</div><p class="q">{esc(c["texto"])}</p>{ops}'
-                      f'<label class="t" for="t_{esc(p["id"])}">{rotulo}</label>'
-                      f'<textarea id="t_{esc(p["id"])}" name="t_{esc(p["id"])}"></textarea></section>')
+        cards.append(f'<section class="card"><div class="n">Pergunta {i} de {len(novas)}</div><p class="q">{esc(c["texto"])}</p>{ops}'
+                     f'<label class="t" for="t_{esc(p["id"])}">{rotulo}</label>'
+                     f'<textarea id="t_{esc(p["id"])}" name="t_{esc(p["id"])}"></textarea></section>')
+    perguntas_html = ('<h2 class="sec">Novas perguntas</h2>' + "\n".join(cards)) if cards else ""
+    registro_html = ""
+    if reg:
+        registro_html = ('<section class="reg"><h2 class="sec">Respostas já registradas</h2>'
+                         '<p class="nota2">🔒 Estas respostas já foram enviadas e não podem ser alteradas. Ficam aqui como registro das definições.</p>')
+        rod_atual = None
+        for it in reg:
+            if it["rodada"] != rod_atual:
+                rod_atual = it["rodada"]
+                registro_html += f'<h3 class="rod">Rodada {rod_atual} · {esc(_fmt(it["respostas"][0]["em"])[:10])}</h3>'
+            registro_html += f'<div class="rc"><p class="q">{esc(it["pergunta"])}</p>'
+            for k, r in enumerate(it["respostas"]):
+                quem = f' · {esc(r["respondente"])}' if r.get("respondente") else ""
+                rot = "Resposta" if k == 0 else "Complemento"
+                texto = " ".join(x for x in [r.get("opcao", ""), r.get("texto", "")] if x)
+                registro_html += (f'<p class="a"><span class="meta">🔒 {rot} · {esc(_fmt(r["em"]))}{quem}</span><br>{esc(texto)}</p>')
+            registro_html += "</div>"
+        registro_html += f'<p class="cod">Código do registro: <code>{_codigo_registro(reg)}</code></p></section>'
     nome = S.titulo_projeto(md)
-    intro = a.intro or "Preciso de algumas informações sobre o seu negócio para montar o projeto do jeito certo. Responda o que souber agora."
+    if a.intro:
+        intro = a.intro
+    elif reg and novas:
+        intro = "Obrigado pelas respostas anteriores, que ficam registradas abaixo. Preciso de mais algumas informações para continuar."
+    elif reg:
+        intro = "Estas são as definições registradas até agora, com as suas respostas. Não há perguntas novas no momento."
+    else:
+        intro = "Preciso de algumas informações sobre o seu negócio para montar o projeto do jeito certo. Responda o que souber agora."
     tpl = S.ler(os.path.join(SKILL, "templates", "cliente.html"))
     pagina = (tpl.replace("__TITULO__", esc(nome)).replace("__INTRO__", esc(intro)).replace("__PROJETO__", esc(nome))
-              .replace("__PERGUNTAS__", "\n".join(blocos)))
+              .replace("__REGISTRO__", registro_html).replace("__PERGUNTAS__", perguntas_html)
+              .replace("__FORM_HIDDEN__", "" if novas else " hidden"))
     pasta = os.path.join(raiz, ".spec", "cliente")
     os.makedirs(pasta, exist_ok=True)
     S.gravar(os.path.join(pasta, "index.html"), pagina)
     S.gravar(os.path.join(pasta, "obrigado.html"), S.ler(os.path.join(SKILL, "templates", "obrigado.html")))
+    sync_decisoes(raiz)
     print(pasta)
-    print(f"{len(qs)} perguntas na página do cliente.")
+    print(f"{len(novas)} perguntas novas · {len(reg)} respostas registradas (travadas) na página do cliente.")
 
 
 def cmd_import_cliente(a, raiz):
-    """Importa envios do formulário (JSON de `netlify.py submissions`) como respostas do cliente a traduzir."""
+    """Importa envios do formulário (JSON de `netlify.py submissions`). Só acrescenta: nunca altera o que já foi registrado."""
     md, e = carregar(raiz)
     envios = json.load(open(a.arquivo, encoding="utf-8"))
     n = 0
-    for env in envios:
+    for env in sorted(envios, key=lambda x: x["em"]):
         dados = env.get("data", {})
         for p in e["perguntas"]:
             opcao = (dados.get("q_" + p["id"]) or "").strip()
             texto = (dados.get("t_" + p["id"]) or "").strip()
-            if not (opcao or texto) or p.get("resposta"):
+            if not (opcao or texto):
                 continue
-            ant = p.get("resposta_cliente")
-            if ant and ant.get("em", "") >= env["em"]:
+            lista = p.setdefault("respostas_cliente", [])
+            if any(x.get("submissao") == env.get("id") for x in lista):
                 continue
-            p["resposta_cliente"] = {"opcao": opcao, "texto": texto, "em": env["em"], "submissao": env.get("id", ""),
-                                     "respondente": (dados.get("respondente") or "").strip()}
+            c = p.get("cliente") or {}
+            lista.append({"pergunta": c.get("texto") or p["q"], "opcoes": c.get("opcoes", []), "opcao": opcao, "texto": texto,
+                          "em": env["em"], "submissao": env.get("id", ""),
+                          "respondente": (dados.get("respondente") or "").strip()})
+            lista.sort(key=lambda x: x["em"])
+            p["resposta_cliente"] = lista[-1]
+            p.setdefault("rodada_cliente", _rodada_de(e, p["id"]) or 1)
             n += 1
     salvar_entrev(raiz, e)
     sync_decisoes(raiz)
-    pend = [p["id"] for p in e["perguntas"] if p.get("resposta_cliente") and not p.get("resposta")]
-    print(f"{n} respostas do cliente importadas. A traduzir para decisão técnica: {', '.join(pend) or 'nenhuma'}")
+    pend = [p["id"] for p in e["perguntas"] if p.get("respostas_cliente") and not p.get("resposta")]
+    print(f"{n} respostas do cliente registradas. A traduzir para decisão técnica: {', '.join(pend) or 'nenhuma'}")
 
 
 def cmd_bypass_all(a, raiz):
