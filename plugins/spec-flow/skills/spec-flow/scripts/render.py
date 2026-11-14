@@ -211,7 +211,13 @@ def _tab_testes(tst, feats):
         h += f'<div class="grupo">{esc(S.QUANDO_NOME[q])}</div><div class="tabela"><table><tr><th>Teste</th><th>Feature</th><th>Tipo</th><th>Modo</th><th>Estado</th><th>Evidência</th><th>Por que neste momento</th></tr>'
         for t in grupo:
             modo = "🤖 autônomo" if t["modo"] == "autonomo" else "🧑 manual"
-            ev = f"<code>{esc(t['evidencia'])}</code>" if t["evidencia"] else "—"
+            evp = t["evidencia"]
+            if evp.startswith("docs/") and not evp.startswith("docs/../"):
+                ev = f'<a href="{esc(evp[5:])}"><code>{esc(evp)}</code></a>'
+            elif evp.startswith(("http://", "https://")):
+                ev = f'<a href="{esc(evp)}">{esc(evp)}</a>'
+            else:
+                ev = f"<code>{esc(evp)}</code>" if evp else "—"
             h += (f'<tr><td><b>{esc(t["id"])}</b> {esc(t["titulo"])}<div class="hs">{esc(t["criterio"])}</div></td>'
                   f'<td>{esc(t["feature"] or "—")}<div class="hs">{esc(nomes.get(t["feature"], ""))}</div></td><td>{esc(t["tipo"] or "—")}</td><td>{modo}</td>'
                   f'<td><span class="chip ts-{t["estado"]}">{esc(S.TESTE_NOME.get(t["estado"], t["estado"]))}</span></td><td>{ev}</td><td class="dec">{esc(t["motivo_momento"] or "—")}</td></tr>')
@@ -254,7 +260,8 @@ def _abas(md, e, ent, feats, tasks, tst, hist, crs, f, visao, tab_features, tab_
           "function go(k){b.forEach(function(x){x.classList.toggle('on',x.dataset.t===k)});t.forEach(function(x){x.classList.toggle('on',x.id==='t-'+k)});"
           "if(history.replaceState)history.replaceState(null,'','#'+k);}"
           "b.forEach(function(x){x.addEventListener('click',function(){go(x.dataset.t)})});"
-          "var h=location.hash.slice(1);if(h&&document.getElementById('t-'+h))go(h);})();</script>"
+          "var h=location.hash.slice(1);if(h&&document.getElementById('t-'+h))go(h);"
+          "var at=document.querySelector('ol.fases li.atual');if(at&&at.scrollIntoView)at.scrollIntoView({inline:'center',block:'nearest'});})();</script>"
           "<noscript><style>.tab{display:block!important}.tabs{display:none}</style></noscript>")
     return nav + pain + js
 
@@ -380,7 +387,7 @@ def render_painel(raiz, md, e):
             ok = sum(1 for t in ts if t["estado"] == "feita")
             ent_ok = sum(1 for x in fs if x["estado"] == "entregue")
             h += (f'<div class="row"><span><b>{esc(en["id"])}</b> · {esc(en["nome"])}</span>'
-                  f'{barra([("done", pct(ok, len(ts))) if ts else ("done", pct(ent_ok, len(fs)))])}'
+                  f'{barra([("done" if (fs and ent_ok == len(fs)) else "run", pct(ok, len(ts)) if ts else pct(ent_ok, len(fs)))])}'
                   f'<span class="v">{ent_ok}/{len(fs)} features · {pct(ok, len(ts))}% tasks</span></div>')
             if en["objetivo"]:
                 h += f'<div class="sub">{esc(en["objetivo"])}</div>'
