@@ -113,7 +113,7 @@ Leia `reference/features-tasks.md` (como cortar, formato, exemplos).
 
 Seja o mais **autônomo** possível. Procedimento e regras em `reference/testes.md`.
 
-1. `SPEC testes` mostra o plano por momento. Rode, **sem pedir licença**, todos os testes autônomos de `antes-deploy` (e qualquer `durante-build` que sobrou), guarde a evidência em `docs/evidencias/` e registre: `SPEC set-teste ID passou|falhou --evidencia <caminho>`.
+1. `SPEC testes` mostra o plano por momento. Rode, **sem pedir licença**, todos os testes autônomos de `antes-deploy` (e qualquer `durante-build` que sobrou) com `SPEC rodar-teste ID` (roda o `como`, guarda a saída em `docs/evidencias/` e registra passou/falhou pelo código de saída). Só use `SPEC set-teste ID passou|falhou --evidencia <caminho>` para o que não é comando; **nunca registre `passou` sem ter lido o resultado**.
 2. **Falhou:** não avance. Descubra a causa, crie a task de correção, conserte, rode de novo. Depois de 3 tentativas sem sucesso, mostre ao usuário o que tentou.
 3. **Testes manuais** (aceite do dono, olhar de design): entregue um roteiro curto e objetivo; o usuário executa e você registra o resultado. É o **aceite** que move a feature para `entregue`.
 4. **Reavalie o plano:** se um teste só faz sentido depois do deploy, mude `quando: pos-deploy` e explique em `motivo_momento`; se surgiu risco novo, crie teste novo (`SPEC new-id TS`).
@@ -124,7 +124,7 @@ Seja o mais **autônomo** possível. Procedimento e regras em `reference/testes.
 Detalhes e formato em `reference/deploy.md`. Resumo:
 
 1. `SPEC deploy-init` monta o checklist (seção 8 do SPEC.md) a partir das decisões DP-*, S-02, A-03, A-05, SG-03, D-03 e D-05. Item sem decisão vira "definir agora". Projeto antigo sem a seção 8: `SPEC migrar` antes.
-2. Rode o checklist com o usuário, item a item: `SPEC set-deploy CK-001 andamento|feito|bloqueado --evidencia "docs/evidencias/arquivo"`. **Confirme antes de cada ação externa.** Credenciais: o usuário fornece pelo meio seguro do ambiente; nunca peça para colar segredos no chat.
+2. Rode o checklist com o usuário, item a item: `SPEC set-deploy CK-001 andamento|feito|bloqueado|n-a --evidencia "docs/evidencias/arquivo"`. **Confirme antes de cada ação externa.** Credenciais: o usuário fornece pelo meio seguro do ambiente; nunca peça para colar segredos no chat.
 3. Preencha como publicar de novo, como reverter, domínio e monitoramento: `SPEC deploy-info chave "valor"`.
 4. Cada publicação vira registro: `SPEC deploy-registrar --ambiente homologacao|producao --resultado ok|falhou|revertido [--url ..] [--commit ..] [--nota ..]`. Produção `ok` com `--url` grava o endereço oficial.
 5. **Logo depois de publicar, rode sozinho os testes `pos-deploy`** (disponibilidade, HTTPS, domínio, fluxo principal em produção). Falha em produção: avise na hora, proponha o rollback decidido na entrevista e registre `revertido`.
@@ -138,7 +138,7 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 2. `SPEC cr-new "<título>" --features F-00X --motivo "..."`.
 3. **Mini-entrevista só dos blocos afetados**: `SPEC add` com perguntas sob medida (bloco `mudanca` e os blocos tocados), pelo canal de sempre; direcione ao cliente o que for dele. Varredura curta e `SPEC varredura`.
 4. Com respostas fechadas: `SPEC cr-set CR-001 aprovada` (marca as features afetadas como `alterada`), crie ou ajuste features (`origem: CR-001`), tasks **e testes** (inclua regressão do que a mudança pode quebrar) e construa, teste e publique como nas fases 3 a 7.
-5. Ao entregar: `SPEC cr-set CR-001 entregue`, features voltam a `entregue`, seção 8 (Deploy) atualizada com a nova publicação, histórico registrado.
+5. Ao entregar: `SPEC cr-set CR-001 entregue` (só passa com as tasks e os testes das features da CR concluídos, inclusive os pós-deploy depois de publicar; as features voltam a `entregue`), features voltam a `entregue`, seção 8 (Deploy) atualizada com a nova publicação, histórico registrado.
 
 ## Link do cliente (Netlify)
 
@@ -180,12 +180,12 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `gate` / `fase DESTINO [--forcar]` | valida e muda de fase |
 | `check` | valida o SPEC.md (ids, dependências, ciclos, arquivos em disputa) |
 | `ready [--json]` | tasks prontas e lote paralelo |
-| `testes [--quando Q] [--json]` / `set-teste ID estado [--evidencia ..]` | plano de testes por momento / registra resultado com evidência |
+| `testes [--quando Q] [--json]` / `rodar-teste ID [--cmd ..]` / `set-teste ID estado [--evidencia ..]` | plano de testes por momento / roda o teste e registra pelo código de saída (com log) / registra resultado de teste que não é comando |
 | `set-feature ID estado` / `set-task ID estado` | muda estados (task: pendente, andamento, feita, bloqueada) |
 | `hist "texto"` / `new-id F\|T\|CR\|E\|TS` | histórico / próximo id |
-| `cr-new` / `cr-set ID estado` | change requests |
+| `cr-new` / `cr-set ID estado [--forcar]` | change requests (entregar exige tasks e testes das features concluídos) |
 | `deploy-init [--forcar]` | monta o checklist de deploy (seção 8) a partir das decisões |
-| `set-deploy CK-ID pendente\|andamento\|feito\|bloqueado [--evidencia ..]` | estado de um item do checklist |
+| `set-deploy CK-ID pendente\|andamento\|feito\|bloqueado\|n-a [--evidencia ..]` | estado de um item do checklist |
 | `deploy-info chave "valor"` | url, ambiente, dominio, como_publicar, como_reverter, monitoramento |
 | `deploy-registrar --ambiente A --resultado ok\|falhou\|revertido [--url ..] [--commit ..] [--nota ..]` | registra uma publicação |
 | `migrar` | atualiza SPEC.md antigo (cria a seção 8 Deploy; Change requests vira 9 e Histórico 10) |

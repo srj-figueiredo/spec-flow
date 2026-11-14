@@ -126,7 +126,7 @@ O `CLAUDE.md` do projeto manda toda sessão nova invocar a skill. Ela mostra a f
 | `revisar ID --motivo .. --origem ID` / `revisao-ok ID` | marcar decisão para revisão / manter |
 | `gate` / `fase DESTINO [--forcar]` / `check` | validar, mudar fase, validar SPEC |
 | `ready [--json]` / `set-feature` / `set-task` | construção |
-| `testes [--quando Q]` / `set-teste ID estado --evidencia ..` | plano de testes por momento / resultado com evidência |
+| `testes [--quando Q]` / `rodar-teste ID [--cmd ..]` / `set-teste ID estado --evidencia ..` | plano de testes por momento / roda o teste e registra pelo código de saída, com log / resultado de teste manual com evidência |
 | `cr-new` / `cr-set` / `hist` / `new-id` / `ficha` / `sync` / `render` | mudanças, histórico, utilitários |
 | `deploy-init`, `set-deploy`, `deploy-info`, `deploy-registrar`, `migrar` | checklist e registro de publicações (seção 8); `migrar` atualiza SPEC.md antigo |
 | `netlify.py site-ensure [--aleatorio] [--ficha .]`, `deploy [--ficha .]`, `forms`, `submissions`, `delete-site` | publicação do link do cliente |

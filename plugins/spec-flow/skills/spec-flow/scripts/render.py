@@ -76,7 +76,7 @@ footer{color:var(--muted);font-size:.8rem;margin-top:22px;text-align:center}
 .dl{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;margin:8px 0 0;font-size:.92rem}.dl dt{color:var(--muted)}.dl dd{margin:0;overflow-wrap:anywhere}
 .big{font-size:1.15rem;font-weight:650;overflow-wrap:anywhere}.aviso2{background:#fff4d6;border:1px solid var(--warn);border-radius:12px;padding:10px 12px;margin:10px 0;font-size:.92rem}
 @media (prefers-color-scheme:dark){.aviso2{background:#3a3016}}
-.chip.ck-feito{background:var(--good);border-color:var(--good);color:#fff}.chip.ck-andamento{background:var(--blue);border-color:var(--blue);color:#fff}.chip.ck-bloqueado{background:var(--crit);border-color:var(--crit);color:#fff}
+.chip.ck-feito{background:var(--good);border-color:var(--good);color:#fff}.chip.ck-andamento{background:var(--blue);border-color:var(--blue);color:#fff}.chip.ck-bloqueado{background:var(--crit);border-color:var(--crit);color:#fff}.chip.ck-n-a{opacity:.7}
 @media(max-width:560px){.dl{grid-template-columns:1fr}.dl dt{margin-top:6px}}.hs{font-size:.8rem;color:var(--muted);margin:4px 0 0}
 .grupo{margin:14px 0 4px;font-weight:650;font-size:.95rem}
 .fdet{border-top:1px solid var(--line);padding:10px 0}.fdet h3{margin:0 0 4px;font-size:1rem}.fdet ul{margin:4px 0 0;padding-left:20px;font-size:.9rem}
@@ -299,11 +299,15 @@ def _tab_deploy(md, e, tst, f):
     # checklist
     h += '<div class="card"><h2>Checklist de deploy</h2>'
     if itens:
-        feitos = sum(1 for i in itens if i["estado"] == "feito")
+        feitos = sum(1 for i in itens if i["estado"] in ("feito", "n-a"))
         h += f'<div class="sub">{feitos} de {len(itens)} itens concluídos</div>{barra([("done" if feitos == len(itens) else "run", pct(feitos, len(itens)))])}'
         h += '<div class="tabela"><table><tr><th>Item</th><th>Estado</th><th>Decisão / nota</th></tr>'
         for i in itens:
-            ev = f'<div class="hs">Evidência: {_link_evidencia(i["evidencia"])}</div>' if i["evidencia"] else ""
+            if i["evidencia"]:
+                rot_ev = "Não se aplica: " if i["estado"] == "n-a" else "Evidência: "
+                ev = f'<div class="hs">{rot_ev}{_link_evidencia(i["evidencia"]) if i["estado"] != "n-a" else esc(i["evidencia"])}</div>'
+            else:
+                ev = '<div class="hs">sem evidência registrada</div>' if i["estado"] == "feito" else ""
             h += (f'<tr><td><b>{esc(i["id"])}</b> {esc(i["titulo"])}</td><td><span class="chip ck-{i["estado"]}">{esc(i["estado"])}</span></td>'
                   f'<td class="dec">{esc(i["nota"] or "—")}{ev}</td></tr>')
         h += "</table></div>"

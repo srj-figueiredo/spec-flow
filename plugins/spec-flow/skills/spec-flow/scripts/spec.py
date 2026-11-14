@@ -322,7 +322,7 @@ def cmd_status(a, raiz):
     print(f"Testes: {d['testes'] or 'nenhum no plano'}")
     dp = S.deploy(md)
     if dp["checklist"] or dp["publicacoes"]:
-        print(f"Deploy: checklist {sum(1 for i in dp['checklist'] if i['estado'] == 'feito')}/{len(dp['checklist'])} · publicações: {len(dp['publicacoes'])}"
+        print(f"Deploy: checklist {sum(1 for i in dp['checklist'] if i['estado'] in ('feito', 'n-a'))}/{len(dp['checklist'])} · publicações: {len(dp['publicacoes'])}"
               f" · URL: {dp['info'].get('url') or '—'}")
     if e:
         pc = estado_pagina_cliente(md, e)
@@ -356,7 +356,8 @@ def cmd_next(a, raiz):
     for q in saida:
         print(f"[{q['id']}] Pergunta {q['pos']} de {q['total']} · {q['bloco']}")
         print(f"  {q['q']}")
-        print(f"  (por quê: {q['why']})")
+        if q.get("why"):
+            print(f"  (por quê: {q['why']})")
         if q.get("dica"):
             print(f"  (no briefing: {q['dica']})")
         if (q.get("revisao") or {}).get("aberta"):
@@ -1121,7 +1122,7 @@ def erros_de_gate(raiz, atual, destino):
         if not dp["checklist"]:
             erros.append("Checklist de deploy vazio: rode `deploy-init` e conclua os itens.")
         for it in dp["checklist"]:
-            if it["estado"] != "feito":
+            if it["estado"] not in ("feito", "n-a"):
                 erros.append(f"{it['id']} ({it['titulo'][:50]}): {it['estado']}.")
         if not any(x["ambiente"] == "producao" and x["resultado"] == "ok" for x in dp["publicacoes"]):
             erros.append("Nenhuma publicação OK em produção registrada: use `deploy-registrar --ambiente producao --resultado ok --url ...`.")
@@ -1199,7 +1200,7 @@ def cmd_ready(a, raiz):
     mapa = {t["id"]: t for t in S.todas_tasks(md)}
     estado_f = {f["id"]: f["estado"] for f in S.features(md)}
     prontas = [t for t in mapa.values() if t["estado"] == "pendente"
-               and estado_f.get(t["feature"]) in ("aprovada", "em-andamento")
+               and estado_f.get(t["feature"]) in ("aprovada", "em-andamento", "alterada")
                and all(mapa.get(d, {}).get("estado") == "feita" for d in t["depende"])]
     lote, usados = [], set()
     for t in prontas:
@@ -1212,6 +1213,14 @@ def cmd_ready(a, raiz):
         return
     if not prontas:
         print("Nenhuma task pronta para iniciar.")
+        return
+    paralelo = S.ficha(md).get("tasks_paralelas", "não") == "sim"
+    if not paralelo:
+        t0 = prontas[0]
+        print("Próxima task (modo sequencial; uma por vez):")
+        print(f"  {t0['id']} · {t0['titulo']} · dono: {t0['dono'] or '—'} · toca: {', '.join(t0['toca']) or '—'}")
+        if len(prontas) > 1:
+            print(f"Depois dela já estão liberadas: {', '.join(x['id'] for x in prontas[1:])}.")
         return
     print("Podem rodar JUNTAS agora (arquivos disjuntos):")
     for t in lote:
@@ -1289,6 +1298,8 @@ def cmd_set_deploy(a, raiz):
     md, _ = carregar(raiz)
     if a.estado not in S.CK_MARCA_DE:
         die(f"estado inválido: {a.estado}. Use: {', '.join(S.CK_MARCA_DE)}")
+    if a.estado == "n-a" and not a.evidencia:
+        die("n-a exige a justificativa: use --evidencia \"por que não se aplica\".")
     md = S.set_marca_checklist(md, a.id, a.estado, a.evidencia)
     md = S.add_historico(md, f"{a.id} → {a.estado}" + (f" (evidência: {a.evidencia})" if a.evidencia else ""))
     S.gravar(caminhos(raiz)["spec"], md)
@@ -1359,6 +1370,44 @@ def cmd_set_teste(a, raiz):
     S.gravar(caminhos(raiz)["spec"], md)
     dica = " Crie uma task de correção e rode o teste de novo." if a.estado == "falhou" else ""
     print(f"{a.id}: {a.estado}.{dica}")
+
+
+def cmd_rodar_teste(a, raiz):
+    """Roda o comando do teste, guarda a saída como evidência e registra passou/falhou pelo código de saída (nunca no escuro)."""
+    import subprocess
+    md, _ = carregar(raiz)
+    t = next((x for x in S.testes(md) if x["id"] == a.id), None)
+    if not t:
+        die(f"teste {a.id} não existe")
+    if t["modo"] == "manual" and not a.cmd:
+        die(f"{a.id} é manual: entregue o roteiro ao usuário e registre com `set-teste {a.id} passou|falhou --evidencia \"quem aceitou e quando\"`.")
+    cmd = a.cmd or t["como"]
+    if not cmd.strip():
+        die(f"{a.id} não tem comando em `como`: passe --cmd.")
+    pasta = os.path.join(raiz, "docs", "evidencias")
+    os.makedirs(pasta, exist_ok=True)
+    quando = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    rel = f"docs/evidencias/{a.id.lower()}-{quando}.log"
+    print(f"$ {cmd}")
+    try:
+        r = subprocess.run(cmd, shell=True, cwd=raiz, capture_output=True, text=True, timeout=a.timeout)
+        rc, saida = r.returncode, (r.stdout or "") + (r.stderr or "")
+    except subprocess.TimeoutExpired as ex:
+        rc, saida = 124, ((ex.stdout or b"").decode() if isinstance(ex.stdout, bytes) else (ex.stdout or "")) + f"\n(interrompido após {a.timeout}s)"
+    if rc == 127:
+        die(f"comando não encontrado (código 127). Se `como` for um roteiro e não um comando, rode você mesmo e use `set-teste` com a evidência.\n{saida.strip()[-300:]}")
+    with open(os.path.join(raiz, rel), "w", encoding="utf-8") as fh:
+        fh.write(f"$ {cmd}\n# {quando} UTC\n\n{saida}\n# código de saída: {rc}\n")
+    estado = "passou" if rc == 0 else "falhou"
+    md = S.set_campo_teste(md, a.id, "estado", estado)
+    md = S.set_campo_teste(md, a.id, "evidencia", rel)
+    md = S.add_historico(md, f"{a.id} → {estado} (evidência: {rel})")
+    S.gravar(caminhos(raiz)["spec"], md)
+    cauda = "\n".join(saida.strip().splitlines()[-12:])
+    print(cauda + f"\n\n{a.id}: {estado} (código de saída {rc}). Evidência: {rel}"
+          + (" Crie uma task de correção e rode o teste de novo." if rc else ""))
+    if rc:
+        sys.exit(1)
 
 
 def cmd_descartar(a, raiz):
@@ -1547,6 +1596,20 @@ def cmd_cr_set(a, raiz):
     cr = next((c for c in S.change_requests(md) if c["id"] == a.id), None)
     if not cr:
         die(f"{a.id} não encontrada")
+    if a.estado == "entregue" and not a.forcar:
+        erros = []
+        alvo = set(cr["features"])
+        for tk in S.todas_tasks(md):
+            if tk["feature"] in alvo and tk["estado"] != "feita":
+                erros.append(f"{tk['id']} ({tk['feature']}): task {tk['estado']}.")
+        for ts in S.testes(md):
+            if ts["feature"] in alvo and ts["estado"] not in ("passou", "n-a"):
+                erros.append(f"{ts['id']} ({S.QUANDO_NOME.get(ts['quando'], ts['quando'])}, {ts['modo']}): {ts['estado']}.")
+        if not alvo:
+            erros.append("A CR não lista features afetadas: preencha `features:` para o motor poder conferir tasks e testes.")
+        if erros:
+            die(f"{a.id} ainda não pode ser entregue:\n  - " + "\n  - ".join(erros)
+                + "\nTermine as tasks, rode os testes (inclusive os pós-deploy, depois de publicar) ou use --forcar sabendo o que está pulando.")
     m = re.search(rf"^### {re.escape(a.id)} · .*$", S.mascara(md), re.M)
     resto = S.mascara(md)[m.end():]
     prox = re.search(r"^## |^### ", resto, re.M)
@@ -1560,9 +1623,14 @@ def cmd_cr_set(a, raiz):
                 md = S.set_estado_feature(md, fid, "alterada")
             except KeyError:
                 pass
+    if a.estado == "entregue":
+        for fid in cr["features"]:
+            f_ = next((x for x in S.features(md) if x["id"] == fid), None)
+            if f_ and f_["estado"] == "alterada":
+                md = S.set_estado_feature(md, fid, "entregue")
     md = S.add_historico(md, f"{a.id} → {a.estado}")
     S.gravar(caminhos(raiz)["spec"], md)
-    print(f"{a.id}: {a.estado}")
+    print(f"{a.id}: {a.estado}" + (" (features alteradas voltaram a entregue)" if a.estado == "entregue" else ""))
 
 
 def cmd_render(a, raiz):
@@ -1710,6 +1778,11 @@ def main():
     p.add_argument("estado", choices=S.TESTE_ESTADOS)
     p.add_argument("--evidencia", help="caminho de log, captura de tela ou saída que prova")
     p.set_defaults(f=cmd_set_teste)
+    p = sp.add_parser("rodar-teste", help="roda o comando do teste (campo `como` ou --cmd), guarda a saída em docs/evidencias e registra passou/falhou pelo código de saída")
+    p.add_argument("id")
+    p.add_argument("--cmd", help="comando a rodar no lugar do campo `como`")
+    p.add_argument("--timeout", type=int, default=600)
+    p.set_defaults(f=cmd_rodar_teste)
     p = sp.add_parser("descartar", help="pergunta da base que não se aplica a este projeto (fica registrada com o motivo)")
     p.add_argument("id")
     p.add_argument("--motivo")
@@ -1766,6 +1839,7 @@ def main():
     p = sp.add_parser("cr-set", help="muda o estado de um change request")
     p.add_argument("id")
     p.add_argument("estado", choices=["aberta", "aprovada", "entregue", "descartada"])
+    p.add_argument("--forcar", action="store_true", help="entrega mesmo com task ou teste pendente (diga ao usuário o que está sendo pulado)")
     p.set_defaults(f=cmd_cr_set)
     p = sp.add_parser("render", help="gera docs/spec.html e docs/painel.html")
     p.set_defaults(f=cmd_render)

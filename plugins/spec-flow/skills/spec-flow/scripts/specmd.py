@@ -274,8 +274,8 @@ def set_campo_teste(md, tid, campo, valor):
 
 
 # ---------- deploy (seção 8) ----------
-CK_RE = re.compile(r"^- \[([ ~x!])\] (CK-\d+) · (.*)$")
-CK_MARCAS = {" ": "pendente", "~": "andamento", "x": "feito", "!": "bloqueado"}
+CK_RE = re.compile(r"^- \[([ ~x!-])\] (CK-\d+) · (.*)$")
+CK_MARCAS = {" ": "pendente", "~": "andamento", "x": "feito", "!": "bloqueado", "-": "n-a"}
 CK_MARCA_DE = {v: k for k, v in CK_MARCAS.items()}
 PUB_RE = re.compile(r"^- (\d{4}-\d{2}-\d{2}) · (\S+) · (ok|falhou|revertido)(?: · (.*))?$")
 
@@ -314,7 +314,7 @@ def deploy(md):
 def set_marca_checklist(md, cid, estado, evidencia=None):
     if estado not in CK_MARCA_DE:
         raise ValueError(f"estado inválido: {estado}. Use: {', '.join(CK_MARCA_DE)}")
-    m = re.search(rf"^(- \[)[ ~x!](\] {re.escape(cid)} · .*)$", mascara(md), re.M)
+    m = re.search(rf"^(- \[)[ ~x!-](\] {re.escape(cid)} · .*)$", mascara(md), re.M)
     if not m:
         raise KeyError(f"item {cid} não encontrado")
     pos = m.start() + len(m.group(1))
