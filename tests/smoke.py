@@ -402,6 +402,63 @@ def teste_cliente(d):
     return d
 
 
+def teste_independencia_e_reabrir():
+    print("• responder e direcionar são independentes; reabrir")
+    d = novo(prof="m")
+    sp(d, "cliente", "N-03")
+    sp(d, "answer", "N-03", "--opt", "2", "--text", "minha resposta provisória")
+    p = pergunta(d, "N-03")
+    verifica("responder NÃO remove o direcionamento ao cliente", p["cliente"]["ativa"] and p["resposta"]["tipo"] == "opcao")
+    verifica("pergunta respondida e direcionada continua 'aguardando cliente'", "Aguardando o cliente: 1" in sp(d, "status")[1])
+    ok, out = sp(d, "export-cliente")
+    h = ler(os.path.join(d, ".spec", "cliente", "index.html"))
+    verifica("a página do cliente INCLUI a pergunta que o usuário já respondeu", ok and 'name="t_N-03"' in h and "1 perguntas novas" in out, out)
+    md = ler(os.path.join(d, "SPEC.md"))
+    verifica("SPEC.md mostra a resposta provisória junto do 'aguardando cliente'", "Sua resposta provisória" in md and "AGUARDANDO CLIENTE" in md)
+    sp(d, "answer", "N-02", "--opt", "1")
+    verifica("direcionar DEPOIS de responder mantém a resposta", sp(d, "cliente", "N-02", "--texto", "Quem vai pagar o sistema?")[0] and pergunta(d, "N-02")["resposta"]["tipo"] == "opcao")
+    set_secao(d, 1, "Teste.")
+    sp(d, "fase", "entrevista")
+    sp(d, "bypass-all", "--bloco", "escopo")
+    sp(d, "varredura")
+    ok, out = sp(d, "gate", falha=True)
+    verifica("a entrevista NÃO fecha com pergunta respondida que ainda aguarda o cliente", ok and "N-03" in out, out)
+    # cliente responde -> verifica impacto
+    json.dump([{"id": "s1", "em": "2026-11-14T18:00:00Z", "data": {"t_N-03": "vou vender mais", "t_N-02": "eu mesma"}}], open(os.path.join(d, "e.json"), "w"))
+    sp(d, "import-cliente", "e.json")
+    verifica("depois que o cliente responde, a resposta do usuário permanece e a pergunta sai de 'aguardando'",
+             pergunta(d, "N-03")["resposta"]["tipo"] == "opcao" and "Aguardando o cliente" not in sp(d, "status")[1])
+    # reabrir
+    verifica("reabrir sem resposta é recusado", sp(d, "reabrir", "N-04", falha=True)[0])
+    ok, out = sp(d, "reabrir", "N-03", "--motivo", "mudei de ideia")
+    p = pergunta(d, "N-03")
+    verifica("reabrir limpa a resposta e guarda a anterior no histórico", ok and "resposta" not in p and len(p["historico"]) == 1 and p["historico"][0]["motivo"] == "mudei de ideia")
+    verifica("reabrir mantém o direcionamento ao cliente", p["cliente"]["ativa"] is True)
+    verifica("reaberta + cliente já respondeu: volta para a tradução (não some)", "1 já com resposta para traduzir" in sp(d, "status")[1])
+    sp(d, "cliente", "N-05", "--texto", "Quem aprova?")
+    sp(d, "answer", "N-05", "--opt", "1")
+    sp(d, "reabrir", "N-05")
+    verifica("reaberta sem resposta do cliente: continua com o cliente e o usuário pode responder de novo",
+             "resposta" not in pergunta(d, "N-05") and pergunta(d, "N-05")["cliente"]["ativa"] and sp(d, "answer", "N-05", "--opt", "2")[0])
+    # importação a partir do celular: coleção clientes + tombstone reaberta
+    d2 = novo(prof="m")
+    sp(d2, "answer", "N-01", "--opt", "1")
+    docs = [{"id": "N-01", "colecao": "answers", "data": {"tipo": "reaberta", "em": "2099-01-01T00:00:00Z"}},
+            {"id": "N-02", "colecao": "clientes", "data": {"ativa": True, "texto": "Quem paga o sistema?", "opcoes": ["Eu"], "em": "2099-01-01T00:00:00Z", "arquivo": True}},
+            {"id": "N-03", "colecao": "answers", "data": {"tipo": "opcao", "indices": [1], "em": "2099-01-01T00:00:00Z"}},
+            {"id": "N-03", "colecao": "clientes", "data": {"ativa": True, "texto": "Como saberá?", "opcoes": [], "em": "2099-01-01T00:00:01Z"}}]
+    json.dump(docs, open(os.path.join(d2, "db.json"), "w"))
+    ok, out = sp(d2, "import-answers", "db.json")
+    verifica("import: tombstone 'reaberta' limpa a resposta e arquiva a anterior", ok and "resposta" not in pergunta(d2, "N-01") and len(pergunta(d2, "N-01")["historico"]) == 1)
+    verifica("import: coleção 'clientes' direciona", pergunta(d2, "N-02")["cliente"]["ativa"] and pergunta(d2, "N-02")["cliente"]["arquivo"] is True)
+    p3 = pergunta(d2, "N-03")
+    verifica("import: resposta E direcionamento da mesma pergunta convivem", p3["resposta"]["tipo"] == "opcao" and p3["cliente"]["ativa"])
+    json.dump({"answers": {"N-02": {"tipo": "opcao", "indices": [1], "em": "2099-02-01T00:00:00Z"}}, "clientes": {"N-04": {"ativa": True, "texto": "Quem decide?", "em": "2099-02-01T00:00:00Z"}}},
+              open(os.path.join(d2, "copia.json"), "w"))
+    verifica("import do formato 'Copiar respostas' (answers + clientes)", sp(d2, "import-answers", "copia.json")[0] and pergunta(d2, "N-04")["cliente"]["ativa"] and pergunta(d2, "N-02")["resposta"]["tipo"] == "opcao")
+    verifica("painel mostra a resposta provisória junto do aguardando", (sp(d2, "render")[0] and "Sua resposta (provisória)" in ler(os.path.join(d2, "docs", "painel.html"))))
+
+
 def teste_celular_e_render(d):
     print("• página do celular, importação de respostas e render")
     q = pergunta(d, "N-01")
@@ -465,6 +522,7 @@ def main():
     d = teste_gates_e_fases()
     teste_features_tasks(d)
     teste_fluxo_guiado()
+    teste_independencia_e_reabrir()
     dc = teste_cliente(d)
     teste_celular_e_render(dc)
     teste_netlify_offline()

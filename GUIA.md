@@ -52,6 +52,9 @@ Diga: *"quero começar um projeto com a spec-flow"*. O Claude cria o projeto (ti
 ### A lista inicial do cliente
 Depois de montar o plano, o Claude **propõe a primeira lista para o dono do negócio**: separa o que é de negócio e reescreve em linguagem de negócio (com opções visuais nas de design). Na lista completa, **o que ele pré-selecionou aparece marcado com 📌**, com o texto pronto à vista, e há um filtro "📌 Sugeridas p/ cliente". **A escolha final é sua**, pergunta a pergunta: **Enviar ao cliente (texto sugerido)** com um toque, **Direcionar ao dono do negócio** para editar o texto, mandar uma que ele não marcou (qualquer pergunta com texto pronto serve) ou não mandar uma que ele marcou. Pedir: *"mostra a lista do cliente"*.
 
+### Responder e direcionar são independentes, e dá para reabrir
+Uma pergunta **marcada para o cliente sempre vai para a página dele**, mesmo que você a responda ou pule. Sua resposta fica **provisória** (o painel mostra "Sua resposta provisória + aguardando cliente") e a resposta do cliente pode mudá-la. A entrevista só fecha quando o cliente responde, ou com bypass. Em qualquer pergunta há **↺ Reabrir pergunta**: a resposta sai, a anterior vai para o histórico e o envio ao cliente continua. Você também pode direcionar depois de responder, sem perder a resposta.
+
 ### Direcionar ao dono do negócio
 Em cada pergunta há o botão **Direcionar ao dono do negócio**, e ele **sempre abre com a pergunta já pronta**, em linguagem de negócio e com opções de resposta, para você só conferir, editar e enviar. Isso vale também para as perguntas técnicas (banco de dados, hospedagem, segurança...), que viram uma pergunta sobre o negócio dele que permite decidir o ponto técnico. Há ainda a caixa "o cliente precisa enviar um arquivo". A pergunta fica **aguardando cliente** (roxo).
 
@@ -104,6 +107,7 @@ O `CLAUDE.md` do projeto manda toda sessão nova invocar a skill. Ela mostra a f
 | `plano` / `descartar ID --motivo ..` | plano de perguntas por bloco / pergunta da base que não se aplica |
 | `lista-cliente` | direcionadas, 📌 sugeridas e demais com texto pronto |
 | `sugerir-cliente --ids A,B [--remover]` / `cliente-lote --ids A,B \| --sugeridas` | marca a pré-seleção / direciona várias de uma vez |
+| `reabrir ID [--motivo ..]` | reabre uma pergunta respondida |
 | `bypass-all [--bloco B] [--motivo ..]` / `varredura` | pular em lote / registrar varredura |
 | `export-web` / `import-answers arq.json` | página do celular / importar respostas |
 | `cliente ID [--texto ..] [--opt ..] [--arquivo [--arquivo-desc ..]] [--design] [--visual paleta\|layout\|tipografia] [--visual-opt ..] [--ref ..] [--sugerir] [--remover]` | direciona ao dono do negócio |

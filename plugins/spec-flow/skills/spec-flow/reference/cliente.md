@@ -19,6 +19,14 @@ Depois de montar o plano de perguntas a partir do escopo, **você propõe a prim
 4. Aprovadas: `SPEC cliente-lote --sugeridas` (as 📌 ainda não enviadas) ou `--ids A,B,C`. Perguntas de design ganham opções visuais padrão; para upload ou opções visuais próprias use `SPEC cliente <ID> ...`.
 5. `SPEC export-cliente` e publique.
 
+## Responder e direcionar são independentes (e dá para reabrir)
+
+- Uma pergunta **marcada para o cliente sempre vai para a página dele**, mesmo que o usuário a tenha respondido ou pulado. Quem responde primeiro não "cancela" o envio.
+- A resposta do usuário vira **provisória**: o painel e o SPEC mostram "Sua resposta provisória: ... + aguardando cliente". Quando o cliente responde, vale a verificação de impacto e a decisão pode mudar.
+- A entrevista **não fecha** com pergunta respondida que ainda aguarda o cliente (a não ser por bypass).
+- O usuário pode **reabrir** qualquer pergunta (botão ↺ **Reabrir pergunta**, ou `SPEC reabrir ID`): a resposta sai, a anterior vai para o histórico da pergunta e o direcionamento ao cliente **continua**. Também pode direcionar depois de responder, sem perder a resposta, ou parar de direcionar enquanto o cliente não respondeu ("Não direcionar mais").
+- Se o cliente já respondeu, a pergunta não é mais direcionável: faça uma pergunta de aprofundamento (`SPEC add` + `SPEC cliente`).
+
 ## Toda pergunta já tem a versão para o dono do negócio
 
 Ao clicar em **Direcionar ao dono do negócio**, o painel **sempre abre com uma pergunta pronta**, em linguagem de negócio, com as opções de resposta, para o usuário só conferir, editar e enviar, mesmo nas técnicas que você não marcou. As técnicas viram uma pergunta sobre o negócio que permite decidir o ponto técnico (banco de dados → "quanta informação você espera guardar nos próximos anos?"; hospedagem → "quanto aceita gastar por mês?"). Garantias:

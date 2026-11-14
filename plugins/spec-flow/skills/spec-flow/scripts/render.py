@@ -161,7 +161,10 @@ def _tab_entrevista(e, ent):
                     dec = esc(r.get("texto") or "Pulada (decidir depois)")
                     sit = '<span class="chip cby">bypass</span>'
                 elif k == "aguardando":
-                    dec = "Com o cliente: " + esc(p["cliente"].get("texto", ""))
+                    minha = ""
+                    if p.get("resposta") and p["resposta"]["tipo"] != "bypass":
+                        minha = f'<div class="hs">✓ Sua resposta (provisória): {esc(C.texto_resposta(p))}</div>'
+                    dec = "Com o cliente: " + esc(p["cliente"].get("texto", "")) + minha
                     sit = '<span class="chip cwt">aguardando cliente</span>'
                 else:
                     dec = "—"

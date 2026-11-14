@@ -98,11 +98,15 @@ def visiveis(e):
 
 
 def estado_p(p):
+    """Responder e direcionar ao cliente são INDEPENDENTES: uma pergunta direcionada continua aguardando o cliente
+    mesmo que o usuário já tenha dado a sua resposta (provisória) ou pulado."""
     r = p.get("resposta")
     if r and (p.get("revisao") or {}).get("aberta"):
         return "revisar"
+    if (p.get("cliente") or {}).get("ativa") and (not r or not p.get("respostas_cliente")):
+        return "aguardando"
     if not r:
-        return "aguardando" if (p.get("cliente") or {}).get("ativa") else "pendente"
+        return "pendente"
     return "bypass" if r["tipo"] == "bypass" else "respondida"
 
 
@@ -163,6 +167,8 @@ def sync_decisoes(raiz):
                     dec = "RESPOSTA DO CLIENTE (a traduzir): " + " · ".join(CH.resumo(rc))
                 else:
                     dec = "AGUARDANDO CLIENTE: " + (p["cliente"].get("texto") or p["q"])
+                if p.get("resposta") and p["resposta"]["tipo"] != "bypass":
+                    dec = f"Sua resposta provisória: {texto_resposta(p)} — " + dec
                 origem = "cliente"
             else:
                 dec = "—"
@@ -444,8 +450,6 @@ def cmd_cliente(a, raiz):
         salvar_entrev(raiz, e)
         print(f"{a.id}: marcada como SUGERIDA para o cliente (você decide se direciona).")
         return
-    if p.get("resposta"):
-        die("pergunta já respondida: não dá para direcionar")
     if a.design:
         p["design"] = True
     visuais, refs = _visuais_de_args(a), _refs_de_args(a)
@@ -465,8 +469,7 @@ def cmd_cliente(a, raiz):
 
 def _cliente_ativas(e):
     """Perguntas direcionadas ao cliente que ainda não receberam resposta dele (vão para o formulário)."""
-    return [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("resposta")
-            and not p.get("respostas_cliente")]
+    return [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("respostas_cliente")]
 
 
 def _fmt(iso):
@@ -787,39 +790,63 @@ def cmd_export_web(a, raiz):
     print(saida)
 
 
+def _itens_import(bruto):
+    """Normaliza o que veio do celular: (id, doc, coleção). Coleções: answers (respostas) e clientes (direcionamentos)."""
+    itens = []
+
+    def add(conteudo, colecao):
+        pares = conteudo.items() if isinstance(conteudo, dict) else [(x.get("id"), x.get("data", x)) for x in conteudo]
+        for k, d in pares:
+            itens.append((k, d, colecao))
+    if isinstance(bruto, dict):
+        if "answers" in bruto or "clientes" in bruto:
+            add(bruto.get("answers", {}), "answers")
+            add(bruto.get("clientes", {}), "clientes")
+        else:
+            add(bruto, "answers")
+    else:
+        for x in bruto:
+            itens.append((x.get("id"), x.get("data", x), x.get("colecao", "answers")))
+    return itens
+
+
+def _aplicar_cliente(p, d):
+    """Direcionamento ao cliente, independente da resposta do usuário. Devolve True se mudou algo."""
+    antigo = p.get("cliente") or {}
+    if antigo.get("em", "") >= d.get("em", ""):
+        return False
+    if d.get("ativa") is False:
+        p.pop("cliente", None)
+        return True
+    p["cliente"] = {"ativa": True, "texto": d.get("texto", ""), "opcoes": [x for x in d.get("opcoes", []) if x],
+                    "em": d.get("em", S.agora()), "arquivo": bool(d.get("arquivo")),
+                    "arquivo_desc": antigo.get("arquivo_desc") or "", "visuais": antigo.get("visuais", []), "refs": antigo.get("refs", [])}
+    return True
+
+
 def cmd_import(a, raiz):
     md, e = carregar(raiz)
     bruto = json.load(open(a.arquivo, encoding="utf-8"))
-    if isinstance(bruto, dict) and "answers" in bruto:
-        bruto = bruto["answers"]
-    itens = bruto.items() if isinstance(bruto, dict) else [(x.get("id"), x.get("data", x)) for x in bruto]
     novas = antigas = 0
-    for qid, d in itens:
+    for qid, d, colecao in _itens_import(bruto):
         p = next((x for x in e["perguntas"] if x["id"] == qid), None)
         if not p or not isinstance(d, dict):
             continue
         atual = p.get("resposta")
-        tipo = d.get("tipo")
-        if tipo == "cliente":
-            antigo = p.get("cliente") or {}
-            # decisão tomada não é direcionável; um bypass mais antigo cede lugar ao direcionamento mais novo
-            if atual and (atual.get("tipo") != "bypass" or atual.get("em", "") >= d.get("em", "")):
-                antigas += 1
-                continue
-            if antigo.get("em", "") >= d.get("em", ""):
-                antigas += 1
-                continue
-            if atual:
-                p.pop("resposta", None)
-            if d.get("ativa") is False:
-                p.pop("cliente", None)
+        tipo = "cliente" if colecao == "clientes" else d.get("tipo")
+        if tipo == "cliente":  # direcionamento ao cliente (também aceita o formato antigo, dentro de answers)
+            if _aplicar_cliente(p, d):
                 novas += 1
-                continue
-            p["cliente"] = {"ativa": True, "texto": d.get("texto", ""), "opcoes": [x for x in d.get("opcoes", []) if x],
-                            "em": d.get("em", S.agora()), "arquivo": bool(d.get("arquivo")),
-                            "arquivo_desc": (antigo.get("arquivo_desc") or ""), "visuais": antigo.get("visuais", []),
-                            "refs": antigo.get("refs", [])}
-            novas += 1
+            else:
+                antigas += 1
+            continue
+        if tipo == "reaberta":  # o usuário reabriu a pergunta: a resposta dele sai, a anterior vai para o histórico
+            if atual and atual.get("em", "") < d.get("em", ""):
+                _arquivar(p, "reaberta pelo usuário")
+                p.pop("resposta", None)
+                novas += 1
+            else:
+                antigas += 1
             continue
         if atual and atual.get("em", "") >= d.get("em", ""):
             antigas += 1
@@ -844,6 +871,22 @@ def cmd_import(a, raiz):
     sync_decisoes(raiz)
     c = contagem(carregar(raiz)[1])
     print(f"{novas} respostas importadas ({antigas} já estavam atualizadas). Restam {c['pendentes']} pendentes.")
+
+
+def cmd_reabrir(a, raiz):
+    """Reabre uma pergunta já respondida: a resposta sai (a anterior vai para o histórico) e ela volta a pendente."""
+    _, e = carregar(raiz)
+    p = next((x for x in e["perguntas"] if x["id"] == a.id), None)
+    if not p:
+        die(f"pergunta {a.id} não existe")
+    if not p.get("resposta"):
+        die(f"{a.id} não tem resposta para reabrir")
+    _arquivar(p, a.motivo or "reaberta pelo usuário")
+    p.pop("resposta", None)
+    salvar_entrev(raiz, e)
+    sync_decisoes(raiz)
+    print(f"{a.id}: reaberta. A resposta anterior ficou no histórico da pergunta"
+          + (" e ela continua direcionada ao cliente." if (p.get("cliente") or {}).get("ativa") else "."))
 
 
 def cmd_varredura(a, raiz):
@@ -1223,7 +1266,7 @@ def cmd_plano(a, raiz):
 
 
 def _livres(p):
-    return not (p.get("cliente") or {}).get("ativa") and not p.get("resposta") and not p.get("respostas_cliente")
+    return not (p.get("cliente") or {}).get("ativa") and not p.get("respostas_cliente")
 
 
 def _sugeridas(e):
@@ -1239,7 +1282,7 @@ def _com_texto_pronto(e):
 def cmd_lista_cliente(a, raiz):
     """A lista inicial do cliente: direcionadas, sugeridas por mim (marcadas na lista completa) e demais com texto pronto."""
     _, e = carregar(raiz)
-    dirs = [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("resposta")]
+    dirs = [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("respostas_cliente")]
     sug, outras = _sugeridas(e), _com_texto_pronto(e)
 
     def item(p):
@@ -1294,8 +1337,8 @@ def cmd_cliente_lote(a, raiz):
     n = 0
     for p in alvo:
         neg = p.get("neg") or {}
-        if not neg.get("q") or p.get("resposta") or p.get("descartada"):
-            print(f"  {p['id']}: pulada (sem sugestão ou já resolvida)")
+        if not neg.get("q") or p.get("descartada") or p.get("respostas_cliente"):
+            print(f"  {p['id']}: pulada (sem texto de negócio, descartada ou o cliente já respondeu)")
             continue
         cl = {"ativa": True, "texto": neg["q"], "opcoes": neg.get("o", []), "em": S.agora(), "arquivo": False, "arquivo_desc": "", "visuais": [], "refs": []}
         if p.get("design"):
@@ -1418,6 +1461,10 @@ def main():
     p = sp.add_parser("import-cliente", help="importa os envios do formulário do cliente")
     p.add_argument("arquivo")
     p.set_defaults(f=cmd_import_cliente)
+    p = sp.add_parser("reabrir", help="reabre uma pergunta já respondida (a resposta anterior vai para o histórico)")
+    p.add_argument("id")
+    p.add_argument("--motivo")
+    p.set_defaults(f=cmd_reabrir)
     p = sp.add_parser("revisar", help="marca uma decisão já tomada para revisão (afetada por resposta do cliente)")
     p.add_argument("id")
     p.add_argument("--motivo", required=True)

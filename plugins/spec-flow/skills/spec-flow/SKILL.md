@@ -22,9 +22,10 @@ Se `${CLAUDE_SKILL_DIR}` aparecer sem substituir, ache o script com `find / -nam
 3. **Não pule fase.** Só avance com `SPEC fase <próxima>` (ele valida). Se faltar algo, mostre a lista exata e resolva ou faça bypass. O usuário pode fazer bypass de uma pergunta, de um bloco ou do questionário todo; isso fica registrado como pendência, nunca some.
 4. **Ações que saem do computador** (deploy, publicar, enviar e-mail, mexer em contas) só com confirmação explícita do usuário.
 5. **Respostas curtas e diretas**, em português do Brasil. Mostre o que mudou e o que falta.
-6. **Toda resposta do cliente exige verificação de impacto.** As respostas do dono do negócio podem mudar decisões que já estavam fechadas na lista completa. Depois de `import-cliente`, rode `SPEC impacto`, confira cada resposta nova contra TODAS as decisões já tomadas, marque as afetadas com `SPEC revisar` e só então `SPEC impacto-ok`. A entrevista não fecha com decisão em revisão ou resposta sem verificação (`reference/cliente.md`, seção "Verificação de impacto").
-7. **Perguntas de design ao cliente sempre levam opções visuais e/ou links de referência** (pelo menos um). Arquivos: o formulário aceita upload de até 8 MB por envio; acima disso o desenvolvedor combina a entrega (`reference/cliente.md`, seção "Arquivos e design").
-8. Depois de qualquer mudança relevante rode `SPEC render` e, se o git for usado no projeto, faça commit com o `SPEC.md` e a pasta `docs/`.
+6. **Responder e direcionar ao cliente são independentes.** Pergunta marcada para o cliente **sempre vai** para a página dele, mesmo que o usuário já a tenha respondido ou pulado; a resposta do usuário fica como **provisória** (o painel mostra as duas) e a do cliente pode mudá-la. A entrevista só fecha quando o cliente responde (ou há bypass). O usuário pode **reabrir** qualquer pergunta a qualquer momento (botão ↺ na página, `SPEC reabrir ID`); a resposta anterior vai para o histórico e o direcionamento continua.
+7. **Toda resposta do cliente exige verificação de impacto.** As respostas do dono do negócio podem mudar decisões que já estavam fechadas na lista completa. Depois de `import-cliente`, rode `SPEC impacto`, confira cada resposta nova contra TODAS as decisões já tomadas, marque as afetadas com `SPEC revisar` e só então `SPEC impacto-ok`. A entrevista não fecha com decisão em revisão ou resposta sem verificação (`reference/cliente.md`, seção "Verificação de impacto").
+8. **Perguntas de design ao cliente sempre levam opções visuais e/ou links de referência** (pelo menos um). Arquivos: o formulário aceita upload de até 8 MB por envio; acima disso o desenvolvedor combina a entrega (`reference/cliente.md`, seção "Arquivos e design").
+9. Depois de qualquer mudança relevante rode `SPEC render` e, se o git for usado no projeto, faça commit com o `SPEC.md` e a pasta `docs/`.
 
 ## Ao abrir uma sessão (retomada automática)
 
@@ -69,7 +70,7 @@ Leia `reference/entrevista.md` antes de começar. **O escopo comanda a entrevist
 4. **Escolha o canal da entrevista completa:**
    - **Celular/assíncrono (recomendado):** página privada com salvamento automático (`reference/celular.md`).
    - **Chat:** `SPEC next -n 4 --json` e `AskUserQuestion` com até 4 perguntas por vez. Em cada pergunta: opção 1 = recomendada (rótulo "(Recomendada)"), no máximo 2 alternativas e "Pular (decidir depois)"; resposta livre via "Other". Registre com `SPEC answer <ID> --opt N`, `--text "..."` ou `--bypass`. **Use sempre o chat** se o cliente exigir sigilo.
-5. **Retroalimente a cada resposta (do usuário ou do cliente).** Respostas abrem perguntas novas (`add`, e `cliente` se forem de negócio) e podem mudar decisões já tomadas (`impacto`, `revisar`; regra 6). Mostre o contador: "Bloco Stack · pergunta 7 de 31 (podem surgir mais)".
+5. **Retroalimente a cada resposta (do usuário ou do cliente).** Respostas abrem perguntas novas (`add`, e `cliente` se forem de negócio) e podem mudar decisões já tomadas (`impacto`, `revisar`; regra 7). Mostre o contador: "Bloco Stack · pergunta 7 de 31 (podem surgir mais)".
 6. **Varredura de lacunas (obrigatória)** quando as pendentes acabarem: roteiro em `reference/entrevista.md`; adicione o que faltar; só então `SPEC varredura`.
 7. `SPEC gate` diz se pode sair (barra pendência, bypass não resolvido, decisão em revisão e resposta do cliente sem verificação de impacto). Para sair: `SPEC fase spec`. Pular o questionário todo só se o usuário pedir: `SPEC bypass-all --motivo "..."`, `SPEC varredura` e, se preciso, `SPEC fase spec --forcar`. Cada bypass vira pendência no painel.
 
@@ -151,6 +152,7 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `status [--json]` | fase, entrevista, features, tasks, change requests |
 | `next [-n 4] [--bloco B] [--json]` | próximas perguntas pendentes |
 | `answer ID --opt N \| --text "..." \| --bypass` | registra resposta (`--opt 2,3` em multi) |
+| `reabrir ID [--motivo ..]` | reabre pergunta respondida (a anterior vai para o histórico; o direcionamento ao cliente continua) |
 | `dica ID "texto"` / `rec ID N [--nota ".."]` | personaliza pergunta da base |
 | `plano [--json]` | como a entrevista está montada (escopo × base × descartadas × para o cliente × 📌 sugeridas) |
 | `descartar ID --motivo ".." [--desfazer]` | pergunta da base que não se aplica (fica registrada) |
