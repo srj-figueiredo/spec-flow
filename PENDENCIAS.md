@@ -30,6 +30,12 @@ Projeto fictício "Encomendas da Doceria da Lu" (app web pequeno, Python + SQLit
 
 Limites do ensaio: deploy simulado (sem provedor, domínio ou HTTPS reais), aceite da dona simulado, tasks em paralelo e subagentes **não** testados.
 
+## Ajustes finos do piloto real (loja de cartas Pokémon, outro chat)
+
+Anotados pelo usuário enquanto o primeiro projeto real roda no chat novo. Fazer **um ajuste final em conjunto** depois que o projeto estiver andando. Não mexer antes, salvo se o usuário pedir.
+
+- [ ] **1. Onboarding de instalação.** Ao instalar a skill pela primeira vez, o Claude fez duas perguntas logo de cara. A skill deve guiar quem instala: dizer o que precisa ser preparado no ambiente (repositório, permissões, token do Netlify via formulário seguro, etc.) antes de começar. A mensagem do outro chat com as duas perguntas será colada pelo usuário na próxima mensagem, para entendermos o que exatamente perguntou.
+
 ## Do Claude (código e documentação)
 
 - [ ] **Ensaiar tasks em paralelo com subagentes** (`tasks_paralelas: sim`, worktrees): não foi testado
