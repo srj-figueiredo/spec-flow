@@ -54,6 +54,15 @@ ou as anotações da reunião. Depois, em qualquer sessão: *"retomar"*, *"paine
 O Claude publica uma página **privada** (só você abre) e você responde pelo navegador do celular, quando quiser.
 As respostas ficam guardadas no serviço da Anthropic. Se o cliente exige sigilo, peça a entrevista **pelo chat**.
 
+## Perguntas para o dono do negócio
+
+Muitas perguntas são do **negócio**, não técnicas. Em cada pergunta há a opção **Direcionar ao dono do negócio**: a pergunta
+vem reescrita em linguagem de negócio (editável) e vai para um **segundo link**, só com as perguntas dele, publicado no
+Netlify (sem conta para o cliente, sem custo). O cliente responde no celular, a skill lê as respostas, traduz para decisões
+técnicas (você confirma) e, no fim, monta um **rascunho de e-mail de formalização**. Requer um token do Netlify:
+na nuvem, salvo como credencial para `api.netlify.com`; localmente, `NETLIFY_AUTH_TOKEN`. Detalhes em
+`plugins/spec-flow/skills/spec-flow/reference/cliente.md`. A página do cliente é pública: não use em projeto confidencial.
+
 ## Estrutura criada em cada projeto
 
 ```

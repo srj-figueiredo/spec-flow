@@ -23,7 +23,11 @@ h1{margin:0;font-size:1.05rem;line-height:1.25}
 main{max-width:720px;margin:0 auto;padding:14px 12px 120px}
 .aviso{background:var(--warn-soft);border:1px solid var(--warn);border-radius:12px;padding:10px 12px;font-size:.88rem;margin-bottom:12px}
 .card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
-.card.ok{border-left-color:var(--blue)}.card.byp{border-left-color:var(--warn)}
+.card.ok{border-left-color:var(--blue)}.card.byp{border-left-color:var(--warn)}.card.wait{border-left-color:#6250d6}
+.bar .w{background:#6250d6}
+.btn.dir[aria-pressed=true]{border-color:#6250d6;color:#6250d6;font-weight:600}.btn.dir small{opacity:.75}
+.dirbox{margin-top:10px;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:10px}.dirbox label{display:block;font-size:.82rem;color:var(--ink2);margin:6px 0 2px}.dirbox textarea{margin-top:0;min-height:70px}
+.espera{font-size:.88rem;background:#efecfb;border-radius:10px;padding:8px 10px;margin:10px 0 0}@media (prefers-color-scheme:dark){.espera{background:#2a2447}}
 .tag{font-size:.78rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tag b{font-weight:600;color:var(--ink2)}
 .q{font-size:1.05rem;font-weight:650;margin:4px 0 2px}
@@ -68,29 +72,36 @@ if(!D){document.getElementById("main").innerHTML='<div class="vazio">Sem dados d
 const $=s=>document.querySelector(s);
 const ags=D.perguntas, blocos=D.blocos;
 let resp=Object.assign({},D.respostas||{});
+const cli={};ags.forEach(q=>{if(q.cliente&&q.cliente.ativa)cli[q.id]=q.cliente;});
 let blocoAtual=null, db=null, dict=null, conectado=false, aviso="";
 const LS="specflow:"+D.projeto;
-try{const x=JSON.parse(localStorage.getItem(LS)||"{}");for(const k in x){if(!resp[k]||(x[k].em||"")>(resp[k].em||""))resp[k]=x[k];}}catch(e){}
+try{const x=JSON.parse(localStorage.getItem(LS)||"{}"),R=x.r||(x.c?{}:x),C=x.c||{};
+  for(const k in R){if(!resp[k]||(R[k].em||"")>(resp[k].em||""))resp[k]=R[k];}
+  for(const k in C){if(!cli[k]||(C[k].em||"")>(cli[k].em||""))cli[k]=C[k];}}catch(e){}
 const agora=()=>new Date().toISOString().replace(/\.\d+Z$/,"Z");
 const esc=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function textoResp(q){const r=resp[q.id];if(!r)return"";if(r.tipo==="opcao")return(r.indices||[]).map(i=>q.o[i-1]?q.o[i-1][0]:"").join("; ")+" "+(r.texto||"");if(r.tipo==="livre")return r.texto||"";return"";}
 function visivel(q){if(!q.se)return true;const ref=ags.find(x=>x.id===q.se[0]);if(!ref||!resp[ref.id]||resp[ref.id].tipo==="bypass")return false;return textoResp(ref).toLowerCase().includes(q.se[1].toLowerCase());}
 const vis=()=>ags.filter(visivel);
-const est=q=>{const r=resp[q.id];return!r?"p":r.tipo==="bypass"?"b":"r";};
+const est=q=>{const r=resp[q.id];return!r?(cli[q.id]&&cli[q.id].ativa?"w":"p"):r.tipo==="bypass"?"b":"r";};
 
 /* ---------- salvar ---------- */
 const filas={}, timers={};
-function guardarLocal(){try{localStorage.setItem(LS,JSON.stringify(resp));}catch(e){}}
+function guardarLocal(){try{localStorage.setItem(LS,JSON.stringify({r:resp,c:cli}));}catch(e){}}
 const stMap={};
 function setSt(id,txt,cls){stMap[id]=[txt,cls||""];const el=document.querySelector('[data-st="'+id+'"]');if(el){el.textContent=txt;el.className="st "+(cls||"");}}
+function enviar(id,doc){
+  if(!db){setSt(id,"Guardado só neste aparelho","");return;}
+  setSt(id,"Salvando…","");
+  filas[id]=(filas[id]||Promise.resolve()).then(()=>db.doc("answers/"+id).set(doc)).then(()=>setSt(id,"✓ Salvo","ok"),
+    e=>setSt(id,"Não salvou na nuvem ("+(e&&e.code||"erro")+"). Fica neste aparelho.","err"));
+}
+function direcionar(q,txt,ops){delete resp[q.id];const em=agora();cli[q.id]={ativa:true,texto:txt,opcoes:ops,em};q._dir=false;guardarLocal();
+  enviar(q.id,{tipo:"cliente",texto:txt,opcoes:ops,em});renderTudo(q.id);}
+function desdirecionar(q){const em=agora();cli[q.id]={ativa:false,em};q._dir=false;guardarLocal();enviar(q.id,{tipo:"cliente",ativa:false,em});renderTudo(q.id);}
 function gravar(id,dado,imediato){
   resp[id]=dado;guardarLocal();renderTudo(id);
-  const run=()=>{
-    if(!db){setSt(id,"Guardado só neste aparelho","");return;}
-    setSt(id,"Salvando…","");
-    filas[id]=(filas[id]||Promise.resolve()).then(()=>db.doc("answers/"+id).set(resp[id])).then(()=>setSt(id,"✓ Salvo","ok"),
-      e=>setSt(id,"Não salvou na nuvem ("+(e&&e.code||"erro")+"). Fica neste aparelho.","err"));
-  };
+  const run=()=>enviar(id,resp[id]);
   clearTimeout(timers[id]);
   if(imediato)run();else timers[id]=setTimeout(run,700);
 }
@@ -105,12 +116,12 @@ function pular(q){const a=resp[q.id];if(a&&a.tipo==="bypass"){delete resp[q.id];
   gravar(q.id,{tipo:"bypass",texto:"",em:agora()},true);}
 
 /* ---------- render ---------- */
-function contagem(){const v=vis();let r=0,b=0;v.forEach(q=>{const e=est(q);if(e==="r")r++;else if(e==="b")b++;});return{t:v.length,r,b,p:v.length-r-b};}
+function contagem(){const v=vis();let r=0,b=0,w=0;v.forEach(q=>{const e=est(q);if(e==="r")r++;else if(e==="b")b++;else if(e==="w")w++;});return{t:v.length,r,b,w,p:v.length-r-b-w};}
 function cabecalho(){
   const c=contagem();$("#titulo").textContent=D.projeto;
-  $("#c1").textContent=c.r+" de "+c.t+" respondidas"+(c.b?" · "+c.b+" puladas":"");
-  $("#c2").textContent=c.p?c.p+" pendentes":"tudo resolvido ✓";
-  $("#barra").innerHTML='<i class="a" style="width:'+(100*c.r/(c.t||1))+'%"></i><i class="b" style="width:'+(100*c.b/(c.t||1))+'%"></i>';
+  $("#c1").textContent=c.r+" de "+c.t+" respondidas"+(c.b?" · "+c.b+" puladas":"")+(c.w?" · "+c.w+" com o cliente":"");
+  $("#c2").textContent=c.p?c.p+" pendentes":c.w?"falta só o cliente":"tudo resolvido ✓";
+  $("#barra").innerHTML='<i class="a" style="width:'+(100*c.r/(c.t||1))+'%"></i><i class="w" style="width:'+(100*c.w/(c.t||1))+'%"></i><i class="b" style="width:'+(100*c.b/(c.t||1))+'%"></i>';
   const v=vis();const bs=blocos.filter(b=>v.some(q=>q.bloco===b.id));
   if(!bs.some(b=>b.id===blocoAtual))blocoAtual=(bs.find(b=>v.some(q=>q.bloco===b.id&&est(q)==="p"))||bs[0]||{}).id;
   $("#chips").innerHTML=bs.map(b=>{const qs=v.filter(q=>q.bloco===b.id);const ok=qs.filter(q=>est(q)!=="p").length;
@@ -123,13 +134,19 @@ function card(q,pos,total){
       (i===0?'<span class="rec">Recomendada</span>':"")+(o[1]?'<small>'+esc(o[1])+'</small>':"")+'</span></button>';}).join("");
   const livre=r&&(r.tipo==="livre"||(r.tipo==="opcao"&&r.texto))||(r&&r.tipo==="bypass"&&r.texto);
   const abrirTxt=(r&&r.tipo==="livre")||q._abrir;
+  const cl=cli[q.id],neg=q.neg||{};
+  const dirBtn=e!=="r"?'<button class="btn dir" data-dir="'+q.id+'" aria-pressed="'+(e==="w"||!!q._dir)+'">Direcionar ao dono do negócio'+(neg.q&&!(cl&&cl.ativa)?' <small>(sugestão pronta)</small>':'')+'</button>':"";
+  const painel=(q._dir&&e!=="r")?'<div class="dirbox"><label>Pergunta que o dono do negócio vai ver (linguagem de negócio; pode editar)</label><textarea data-dtxt="'+q.id+'">'+esc((cl&&cl.ativa&&cl.texto)||neg.q||"")+'</textarea>'+
+    '<label>Opções de resposta para ele, uma por linha (opcional)</label><textarea data-dopt="'+q.id+'">'+esc(((cl&&cl.ativa&&cl.opcoes)||neg.o||[]).join("\n"))+'</textarea>'+
+    '<div class="acts"><button class="btn pri" data-dir-ok="'+q.id+'">'+(e==="w"?"Atualizar pergunta":"Enviar ao cliente")+'</button>'+(e==="w"?'<button class="btn" data-dir-rm="'+q.id+'">Não direcionar mais</button>':"")+'</div></div>':"";
+  const espera=e==="w"?'<p class="espera">⏳ Direcionada ao dono do negócio: “'+esc(cl.texto)+'”</p>'+(q.resposta_cliente?'<p class="dica">✎ Cliente respondeu: '+esc(((q.resposta_cliente.opcao||"")+" "+(q.resposta_cliente.texto||"")).trim())+' <b>Traduza com o Claude para virar decisão.</b></p>':""):"";
   const mic=dict?'<button class="btn" data-mic="'+q.id+'" type="button">🎤 Ditar</button>':"";
-  return '<section class="card '+(e==="r"?"ok":e==="b"?"byp":"")+'" id="q-'+q.id+'" data-card="'+q.id+'">'+
+  return '<section class="card '+(e==="r"?"ok":e==="b"?"byp":e==="w"?"wait":"")+'" id="q-'+q.id+'" data-card="'+q.id+'">'+
     '<div class="tag"><b>Pergunta '+pos+' de '+total+'</b><span>'+esc(q.id)+'</span>'+(q.origem==="escopo"?'<span>· do escopo</span>':"")+(q.multi?'<span>· pode marcar várias</span>':"")+'</div>'+
     '<div class="q">'+esc(q.q)+'</div><p class="why">'+esc(q.why||"")+(q.motivo?' <i>(surgiu de: '+esc(q.motivo)+')</i>':"")+'</p>'+(q.dica?'<p class="dica">📎 No briefing: '+esc(q.dica)+' <b>Confirme ou corrija.</b></p>':"")+
-    '<div class="opts">'+ops+'</div>'+
+    espera+'<div class="opts">'+ops+'</div>'+
     '<div class="acts"><button class="btn" data-outra="'+q.id+'" aria-pressed="'+!!abrirTxt+'">Outra resposta</button>'+mic+
-    '<button class="btn pular" data-pular="'+q.id+'" aria-pressed="'+(e==="b")+'">Pular (decidir depois)</button></div>'+
+    dirBtn+'<button class="btn pular" data-pular="'+q.id+'" aria-pressed="'+(e==="b")+'">Pular (decidir depois)</button></div>'+painel+
     (abrirTxt||livre||e==="b"?'<textarea data-txt="'+q.id+'" placeholder="'+(e==="b"?"Motivo ou risco de deixar para depois (opcional)":"Escreva a sua resposta")+'">'+esc(r?(r.texto||""):"")+'</textarea>':"")+
     '<div class="st '+(stMap[q.id]?stMap[q.id][1]:"")+'" data-st="'+q.id+'">'+esc(stMap[q.id]?stMap[q.id][0]:"")+'</div></section>';
 }
@@ -143,7 +160,7 @@ function renderBloco(){
 function rodape(){
   const c=contagem();
   $("#fim").innerHTML=c.p?'<button class="btn pri" data-prox="1">Próxima pendente ↓</button>':
-    '<button class="btn pri" data-copiar="1">Tudo respondido · '+(conectado?'volte ao Claude Code e diga “retomar”':'Copiar respostas')+'</button>';
+    '<button class="btn pri" data-copiar="1">'+(c.w?"Falta só o cliente · ":"Tudo respondido · ")+(conectado?'volte ao Claude Code e diga “retomar”':'Copiar respostas')+'</button>';
 }
 function renderTudo(qid){cabecalho();
   const el=qid&&document.querySelector('[data-card="'+qid+'"]');
@@ -163,6 +180,11 @@ document.addEventListener("click",ev=>{
   if(t.dataset.mic){iniciarDitado(t.dataset.mic,t);return;}
   if(t.dataset.prox){const v=vis();const p=v.find(q=>est(q)==="p");if(!p)return;blocoAtual=p.bloco;cabecalho();renderBloco();
     const el=document.querySelector('[data-card="'+p.id+'"]');if(el)el.scrollIntoView({behavior:"smooth",block:"start"});return;}
+  if(t.dataset.dir){const q=ags.find(x=>x.id===t.dataset.dir);q._dir=!q._dir;renderTudo(q.id);return;}
+  if(t.dataset.dirOk){const q=ags.find(x=>x.id===t.dataset.dirOk),c=document.querySelector('[data-card="'+q.id+'"]');
+    const txt=c.querySelector("[data-dtxt]").value.trim();if(!txt){setSt(q.id,"Escreva a pergunta para o cliente","err");return;}
+    direcionar(q,txt,c.querySelector("[data-dopt]").value.split("\n").map(x=>x.trim()).filter(Boolean));return;}
+  if(t.dataset.dirRm){desdirecionar(ags.find(x=>x.id===t.dataset.dirRm));return;}
   if(t.dataset.copiar){copiar(t);}
 });
 document.addEventListener("input",ev=>{
@@ -179,7 +201,8 @@ document.addEventListener("focusout",ev=>{if(ev.target.matches&&ev.target.matche
   if(timers[id]){clearTimeout(timers[id]);gravar(id,resp[id]||{tipo:"livre",texto:ev.target.value,em:agora()},true);}}});
 
 function copiar(btn){
-  const out={answers:resp};const s=JSON.stringify(out);
+  const all=Object.assign({},resp);for(const k in cli){if(!all[k])all[k]=Object.assign({tipo:"cliente"},cli[k]);}
+  const out={answers:all};const s=JSON.stringify(out);
   (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(s):Promise.reject()).then(()=>{btn.textContent="Copiado ✓";},
     ()=>{const ta=document.createElement("textarea");ta.value=s;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");btn.textContent="Copiado ✓";}catch(e){btn.textContent="Não consegui copiar";}ta.remove();});
 }
@@ -194,7 +217,9 @@ function iniciarDitado(id,btn){
 }
 
 /* ---------- nuvem (opcional) ---------- */
-function mesclar(id,d){if(!d||!ags.some(q=>q.id===id))return false;const a=resp[id];if(a&&(a.em||"")>=(d.em||""))return false;resp[id]=d;return true;}
+function mesclar(id,d){if(!d||!ags.some(q=>q.id===id))return false;
+  if(d.tipo==="cliente"){const c=cli[id];if(c&&(c.em||"")>=(d.em||""))return false;cli[id]={ativa:d.ativa!==false,texto:d.texto||"",opcoes:d.opcoes||[],em:d.em};return true;}
+  const a=resp[id];if(a&&(a.em||"")>=(d.em||""))return false;resp[id]=d;return true;}
 async function iniciarNuvem(){
   if(!(window.claude&&window.claude.use)){aviso="Sem salvamento na nuvem nesta tela: as respostas ficam só neste aparelho. No fim, toque em <b>Copiar respostas</b> e cole no Claude Code.";renderTudo();return;}
   try{db=await window.claude.use("db");}catch(e){db=null;}
@@ -207,7 +232,8 @@ async function iniciarNuvem(){
     if(!snap.metadata.fromCache){conectado=true;aviso="";
       /* reenvia o que só existe aqui (ex.: respondido sem conexão) */
       const nuvem={};snap.docs.forEach(d=>{nuvem[d.id]=d.data();});
-      ags.forEach(q=>{const l=resp[q.id];if(l&&(!nuvem[q.id]||(nuvem[q.id].em||"")<(l.em||"")))gravar(q.id,l,true);});}
+      ags.forEach(q=>{const l=resp[q.id];if(l&&(!nuvem[q.id]||(nuvem[q.id].em||"")<(l.em||"")))gravar(q.id,l,true);
+        else if(!l&&cli[q.id]&&cli[q.id].texto&&(!nuvem[q.id]||(nuvem[q.id].em||"")<(cli[q.id].em||"")))enviar(q.id,Object.assign({tipo:"cliente"},cli[q.id]));});}
     guardarLocal();cabecalho();renderBloco();rodape();
   },err=>{clearTimeout(limite);aviso="O salvamento na nuvem parou ("+(err&&err.code||"erro")+"). Suas respostas ficam neste aparelho.";renderBloco();});
   renderTudo();

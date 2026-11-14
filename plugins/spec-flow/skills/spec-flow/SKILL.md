@@ -59,12 +59,13 @@ Resumo do processo:
 
 1. **Personalize a base.** Para cada pergunta em que o briefing já diz algo, `SPEC dica <ID> "<o que o briefing diz>"`. Onde o contexto do projeto torna outra opção a melhor, `SPEC rec <ID> <n> --nota "<por quê>"`.
 2. **Gere as perguntas do escopo.** Releia o briefing procurando tudo que é específico daquele negócio e ainda não está coberto pela base. Adicione com `SPEC add --bloco <id> --q "..." --opt "<a que você faria>" --opt "<alternativa>" --opt "<alternativa>" --why "..." --motivo "briefing: <trecho>"`. Faça isso de novo depois de cada rodada de respostas: respostas abrem novas perguntas.
-3. **Escolha o canal:**
+3. **Direcione ao dono do negócio o que for dele.** Muita pergunta é de negócio, não técnica. Perguntas da base que têm versão pronta em linguagem de negócio (campo `neg`) são sugeridas ao usuário; para as técnicas, ofereça uma reescrita quando ele pedir. O usuário decide, pergunta a pergunta, e o link do cliente recebe só as direcionadas. Procedimento (publicar, receber, traduzir) em `reference/cliente.md`. Perguntas direcionadas ficam em **aguardando cliente**.
+4. **Escolha o canal:**
    - **Celular/assíncrono (recomendado):** página privada com salvamento automático. Procedimento completo em `reference/celular.md`.
    - **Chat:** `SPEC next -n 4 --json` e `AskUserQuestion` com até 4 perguntas por vez. Em cada pergunta: opção 1 = recomendada (rótulo com "(Recomendada)"), no máximo 2 alternativas adequadas e a opção "Pular (decidir depois)"; a resposta livre o próprio `AskUserQuestion` oferece em "Other". Registre com `SPEC answer <ID> --opt N`, `--text "..."` ou `--bypass`. **Use sempre o chat** quando o cliente exigir sigilo: a página do celular guarda as respostas no serviço da Anthropic.
-4. **Mostre o contador**: "Bloco Stack · pergunta 7 de 31 (podem surgir mais)". `SPEC status` dá os números.
-5. **Varredura de lacunas (obrigatória)** quando as pendentes acabarem: siga o roteiro de `reference/entrevista.md`, adicione o que faltar, e só então `SPEC varredura`.
-6. `SPEC gate` diz se pode sair. Para sair: `SPEC fase spec`. Para pular o questionário todo, o usuário precisa pedir: `SPEC bypass-all --motivo "..."` e depois `SPEC varredura` e `SPEC fase spec --forcar` se necessário. Avise que cada bypass vira pendência no painel.
+5. **Mostre o contador**: "Bloco Stack · pergunta 7 de 31 (podem surgir mais)". `SPEC status` dá os números.
+6. **Varredura de lacunas (obrigatória)** quando as pendentes acabarem: siga o roteiro de `reference/entrevista.md`, adicione o que faltar, e só então `SPEC varredura`.
+7. `SPEC gate` diz se pode sair. Para sair: `SPEC fase spec`. Para pular o questionário todo, o usuário precisa pedir: `SPEC bypass-all --motivo "..."` e depois `SPEC varredura` e `SPEC fase spec --forcar` se necessário. Avise que cada bypass vira pendência no painel.
 
 ## Fase 2 · Spec
 
@@ -73,6 +74,7 @@ Resumo do processo:
    - **Seção 2 (Escopo)**: o que está dentro e o que está **fora** do escopo.
    - **Seção 4 (Como está hoje)**: stack, arquitetura, como rodar, como publicar; só com o que foi decidido. Lacuna vira "A definir" com o ID da pergunta pendente.
 2. Mostre um resumo ao usuário e peça aprovação. `SPEC fase features` só depois do "ok".
+3. Se houve perguntas ao dono do negócio, ofereça o **e-mail de formalização das definições** como **rascunho no Gmail** (`reference/cliente.md`, seção "Formalização por e-mail"). Nunca envie sozinho.
 
 ## Fase 3 · Features e entregas
 
@@ -114,6 +116,10 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 4. Com respostas fechadas: `SPEC cr-set CR-001 aprovada` (marca as features afetadas como `alterada`), crie ou ajuste features com `origem: CR-001`, tasks, construa e teste como nas fases 3 a 6.
 5. Ao entregar: `SPEC cr-set CR-001 entregue`, features voltam a `entregue`, seção 4 atualizada, histórico registrado.
 
+## Link do cliente (Netlify)
+
+`NETLIFY` = `python3 ${CLAUDE_SKILL_DIR}/scripts/netlify.py` (`site-ensure`, `deploy`, `forms`, `submissions`, `delete-site`). Fluxo completo e cuidados em `reference/cliente.md`.
+
 ## Painel e documento (visual)
 
 - `SPEC render` gera `docs/painel.html` (controle ponta a ponta: fase, entrevista, entregas, features, tasks, pendências, change requests, histórico) e `docs/spec.html` (o SPEC.md formatado para leitura).
@@ -134,6 +140,9 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `export-web` | gera `.spec/entrevista.html` (página do celular) |
 | `import-answers arquivo.json` | importa respostas do celular |
 | `sync` | regrava o bloco de decisões do SPEC.md |
+| `cliente ID [--texto ..] [--opt ..] [--sugerir] [--remover]` | direciona a pergunta ao dono do negócio |
+| `export-cliente [--intro ..]` | gera a página do cliente (`.spec/cliente/`) |
+| `import-cliente envios.json` | importa as respostas do cliente (a traduzir) |
 | `ficha [chave] [valor]` | lê ou grava campos da Ficha (ex.: `entrevista_web`, `entrevista_slug`, `tasks_paralelas`) |
 | `gate` / `fase DESTINO [--forcar]` | valida e muda de fase |
 | `check` | valida o SPEC.md (ids, dependências, ciclos, arquivos em disputa) |

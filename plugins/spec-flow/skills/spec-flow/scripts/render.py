@@ -9,7 +9,7 @@ esc = html.escape
 
 CSS = """
 :root{color-scheme:light dark;--bg:#f6f5f2;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#7b7a75;--line:#e3e2dd;
---track:#e8e7e3;--blue:#2a78d6;--blue-soft:#cde2fb;--good:#0ca30c;--warn:#fab219;--serious:#ec835a;--crit:#d03b3b;--code:#f0efec}
+--track:#e8e7e3;--blue:#2a78d6;--wait:#6250d6;--blue-soft:#cde2fb;--good:#0ca30c;--warn:#fab219;--serious:#ec835a;--crit:#d03b3b;--code:#f0efec}
 @media (prefers-color-scheme:dark){:root{--bg:#121211;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#97968f;--line:#2e2e2b;
 --track:#383835;--blue:#3987e5;--blue-soft:#184f95;--code:#262624}}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
@@ -26,7 +26,7 @@ header.top h1{margin:0;font-size:1.6rem;letter-spacing:-.01em}
 .grid{display:grid;gap:14px}.g4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
 .kpi .n{font-size:1.8rem;font-weight:700;letter-spacing:-.02em;line-height:1.1}.kpi .l{color:var(--ink2);font-size:.88rem}.kpi .s{color:var(--muted);font-size:.8rem;margin-top:2px}
 .bar{display:flex;gap:2px;height:10px;background:var(--track);border-radius:999px;overflow:hidden;margin:8px 0 2px}
-.bar .seg{display:block;height:100%}.seg.ok{background:var(--blue)}.seg.byp{background:var(--warn)}.seg.done{background:var(--good)}.seg.run{background:var(--blue)}
+.bar .seg{display:block;height:100%}.seg.ok{background:var(--blue)}.seg.wait{background:#6250d6}.seg.byp{background:var(--warn)}.seg.done{background:var(--good)}.seg.run{background:var(--blue)}
 .row{display:grid;grid-template-columns:150px 1fr 130px;gap:10px;align-items:center;margin:8px 0;font-size:.9rem}
 .row .v{text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums}
 @media(max-width:520px){.row{grid-template-columns:1fr 110px}.row .bar{grid-column:1/-1;order:3}}
@@ -157,6 +157,13 @@ def render_painel(raiz, md, e):
         bypass_q = [p for p in ent[0] if ent[1].estado_p(p) == "bypass"]
         if bypass_q:
             pend.append(("⚠", "w", f"{len(bypass_q)} pergunta(s) da entrevista puladas (bypass): decidir antes de construir"))
+        espera = [p for p in ent[0] if ent[1].estado_p(p) == "aguardando"]
+        trad = [p["id"] for p in espera if p.get("resposta_cliente")]
+        sem = [p["id"] for p in espera if not p.get("resposta_cliente")]
+        if sem:
+            pend.append(("⏳", "w", f"Aguardando o dono do negócio: {len(sem)} pergunta(s) ({', '.join(sem[:8])}{'...' if len(sem) > 8 else ''})"))
+        if trad:
+            pend.append(("✎", "w", f"Cliente respondeu, falta traduzir para decisão técnica: {', '.join(trad)}"))
     for t in tasks:
         if t["estado"] == "bloqueada":
             pend.append(("■", "c", f"Task bloqueada · {t['id']} · {t['titulo']}"))
@@ -174,7 +181,7 @@ def render_painel(raiz, md, e):
     if ent:
         c = ent[2]
         kp += (f'<div class="card kpi"><div class="l">Entrevista respondida</div><div class="n">{pct(c["respondidas"], c["total"])}%</div>'
-               f'<div class="s">{c["respondidas"]} respondidas · {c["bypass"]} puladas · {c["pendentes"]} pendentes</div></div>')
+               f'<div class="s">{c["respondidas"]} respondidas · {c["bypass"]} puladas · {c["aguardando"]} com o cliente · {c["pendentes"]} pendentes</div></div>')
     kp += (f'<div class="card kpi"><div class="l">Features entregues</div><div class="n">{entregues}/{len(ativas)}</div>'
            f'<div class="s">{pct(entregues, len(ativas))}% do escopo ativo</div></div>')
     kp += (f'<div class="card kpi"><div class="l">Tasks feitas</div><div class="n">{feitas}/{len(tasks)}</div>'
@@ -189,7 +196,7 @@ def render_painel(raiz, md, e):
         h += '<div class="card"><h2>Entrevista de requisitos</h2>'
         h += (f'<div class="sub">{c["total"]} perguntas até agora ({c["base"]} da base + {c["escopo"]} do escopo) · '
               f'varredura de lacunas: {esc(f.get("varredura_lacunas", "não"))}. Novas perguntas podem surgir conforme o escopo se define.</div>')
-        h += barra([("ok", pct(c["respondidas"], c["total"])), ("byp", pct(c["bypass"], c["total"]))])
+        h += barra([("ok", pct(c["respondidas"], c["total"])), ("wait", pct(c["aguardando"], c["total"])), ("byp", pct(c["bypass"], c["total"]))])
         blocos = []
         for p in vs:
             if p["bloco"] not in blocos:
@@ -198,9 +205,10 @@ def render_painel(raiz, md, e):
             ps = [p for p in vs if p["bloco"] == b]
             r = sum(1 for p in ps if C.estado_p(p) == "respondida")
             y = sum(1 for p in ps if C.estado_p(p) == "bypass")
+            w = sum(1 for p in ps if C.estado_p(p) == "aguardando")
             h += (f'<div class="row"><span>{esc(C.nome_bloco(e, b))}</span>'
-                  f'{barra([("ok", pct(r, len(ps))), ("byp", pct(y, len(ps)))])}<span class="v">{r + y}/{len(ps)}</span></div>')
-        h += '<div class="sub">Azul: respondida · amarelo: pulada (bypass, vira pendência)</div></div>'
+                  f'{barra([("ok", pct(r, len(ps))), ("wait", pct(w, len(ps))), ("byp", pct(y, len(ps)))])}<span class="v">{r + y}/{len(ps)}</span></div>')
+        h += '<div class="sub">Azul: respondida · roxo: com o cliente · amarelo: pulada (bypass, vira pendência)</div></div>'
 
     # entregas
     if ents:
