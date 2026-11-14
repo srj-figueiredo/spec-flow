@@ -1,0 +1,12 @@
+{
+  "name": "spec-flow",
+  "description": "Skill spec-flow para conduzir projetos de software com spec-driven development",
+  "owner": { "name": "srj-figueiredo" },
+  "plugins": [
+    {
+      "name": "spec-flow",
+      "source": "./plugins/spec-flow",
+      "description": "Entrevista de requisitos, SPEC.md único, features em entregas, tasks para agentes, painel visual e change requests."
+    }
+  ]
+}

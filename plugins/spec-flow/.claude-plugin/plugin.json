@@ -1,0 +1,9 @@
+{
+  "name": "spec-flow",
+  "displayName": "spec-flow",
+  "version": "0.1.0",
+  "description": "Spec-driven development simples: entrevista de requisitos (também pelo celular), SPEC.md como fonte de verdade, features em entregas, tasks para agentes, painel visual e change requests.",
+  "author": { "name": "srj-figueiredo" },
+  "repository": "https://github.com/srj-figueiredo/spec-flow",
+  "keywords": ["spec-driven-development", "requisitos", "spec", "planejamento"]
+}
