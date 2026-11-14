@@ -19,6 +19,14 @@ Depois de montar o plano de perguntas a partir do escopo, **você propõe a prim
 4. Aprovadas: `SPEC cliente-lote --sugeridas` (as 📌 ainda não enviadas) ou `--ids A,B,C`. Perguntas de design ganham opções visuais padrão; para upload ou opções visuais próprias use `SPEC cliente <ID> ...`.
 5. `SPEC export-cliente` e publique.
 
+## Toda pergunta já tem a versão para o dono do negócio
+
+Ao clicar em **Direcionar ao dono do negócio**, o painel **sempre abre com uma pergunta pronta**, em linguagem de negócio, com as opções de resposta, para o usuário só conferir, editar e enviar, mesmo nas técnicas que você não marcou. As técnicas viram uma pergunta sobre o negócio que permite decidir o ponto técnico (banco de dados → "quanta informação você espera guardar nos próximos anos?"; hospedagem → "quanto aceita gastar por mês?"). Garantias:
+
+- as 66 perguntas da base trazem esse texto (`atualizar-textos` o aplica a projetos mais antigos);
+- `SPEC add` **exige** `--neg` (e `--neg-opt`), então nenhuma pergunta do escopo nasce sem a versão de negócio;
+- a tradução da resposta para a decisão técnica continua sendo sua (e a verificação de impacto também).
+
 ## Direcionar uma pergunta
 
 Na página do usuário, cada pergunta (não respondida) tem o botão **Direcionar ao dono do negócio**. Ele abre a pergunta reescrita em linguagem de negócio, editável, e opções de resposta opcionais. Perguntas claramente de negócio já trazem a sugestão pronta (campo `neg` do banco). Nas técnicas, o campo vem vazio: o usuário pode escrever, ou você sugere com `SPEC cliente ID --sugerir --texto "..." [--opt ...]`.

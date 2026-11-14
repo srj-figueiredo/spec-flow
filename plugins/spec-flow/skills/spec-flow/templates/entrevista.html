@@ -141,10 +141,10 @@ function card(q,pos,total){
   const abrirTxt=(r&&r.tipo==="livre")||q._abrir;
   const cl=cli[q.id],neg=q.neg||{};
   const sel=selecionada(q);
-  const quick=(neg.q&&e!=="r"&&!(cl&&cl.ativa))?'<button class="btn dirq" data-dirq="'+q.id+'">Enviar ao cliente (texto sugerido)</button>':"";
+  const quick=(neg.q&&e!=="r"&&!(cl&&cl.ativa))?'<button class="btn dirq" data-dirq="'+q.id+'">Enviar já, com o texto pronto</button>':"";
   const sugtxt=sel?'<p class="sugtxt">📌 Sugeri esta para o cliente. Texto pronto: “'+esc(neg.q)+'”</p>':"";
-  const dirBtn=e!=="r"?'<button class="btn dir" data-dir="'+q.id+'" aria-pressed="'+(e==="w"||!!q._dir)+'">Direcionar ao dono do negócio'+(neg.q&&!(cl&&cl.ativa)?' <small>(sugestão pronta)</small>':'')+'</button>':"";
-  const painel=(q._dir&&e!=="r")?'<div class="dirbox"><label>Pergunta que o dono do negócio vai ver (linguagem de negócio; pode editar)</label><textarea data-dtxt="'+q.id+'">'+esc((cl&&cl.ativa&&cl.texto)||neg.q||"")+'</textarea>'+
+  const dirBtn=e!=="r"?'<button class="btn dir" data-dir="'+q.id+'" aria-pressed="'+(e==="w"||!!q._dir)+'">Direcionar ao dono do negócio'+(!(cl&&cl.ativa)?' <small>(já abre com a pergunta pronta)</small>':'')+'</button>':"";
+  const painel=(q._dir&&e!=="r")?'<div class="dirbox"><p class="sugtxt">📝 '+(neg.q||(cl&&cl.ativa)?'Pergunta pronta, escrita em linguagem de negócio. Edite como quiser antes de enviar.':'Rascunho automático (esta pergunta não tinha texto pronto): revise antes de enviar.')+'</p><label>Pergunta que o dono do negócio vai ver</label><textarea data-dtxt="'+q.id+'">'+esc((cl&&cl.ativa&&cl.texto)||neg.q||("Em palavras simples, sobre o seu negócio: "+q.q))+'</textarea>'+
     '<label>Opções de resposta para ele, uma por linha (opcional)</label><textarea data-dopt="'+q.id+'">'+esc(((cl&&cl.ativa&&cl.opcoes)||neg.o||[]).join("\n"))+'</textarea>'+
     '<label class="chk"><input type="checkbox" data-darq="'+q.id+'"'+((cl&&cl.arquivo)?" checked":"")+'> O cliente precisa enviar um arquivo (máx. 8 MB; maior que isso o desenvolvedor pega depois)</label>'+(q.design?'<p class="espera">🎨 Pergunta de design: ao gerar a página do cliente, o Claude acrescenta opções visuais e links de referência.</p>':"")+'<div class="acts"><button class="btn pri" data-dir-ok="'+q.id+'">'+(e==="w"?"Atualizar pergunta":"Enviar ao cliente")+'</button>'+(e==="w"?'<button class="btn" data-dir-rm="'+q.id+'">Não direcionar mais</button>':"")+'</div></div>':"";
   const espera=e==="w"?'<p class="espera">⏳ Direcionada ao dono do negócio: “'+esc(cl.texto)+'”</p>'+(q.resposta_cliente?'<p class="dica">✎ Cliente respondeu: '+esc(((q.resposta_cliente.opcao||"")+" "+(q.resposta_cliente.texto||"")).trim())+' <b>Traduza com o Claude para virar decisão.</b></p>':""):"";

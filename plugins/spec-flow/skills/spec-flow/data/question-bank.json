@@ -1,5 +1,5 @@
 {
- "versao": 3,
+ "versao": 4,
  "blocos": [
   {
    "id": "negocio",
@@ -298,7 +298,17 @@
     [
      "Sem interface (API ou automação)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Como seus clientes ou funcionários vão usar o sistema: no celular, no computador ou nos dois?",
+    "o": [
+     "Nos dois (celular e computador)",
+     "Só no computador",
+     "Principalmente no celular",
+     "Não sei dizer"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "U-03",
@@ -432,7 +442,16 @@
     [
      "Não é prioridade"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Algum dos seus usuários tem dificuldade de visão, audição ou movimento, ou existe alguma exigência de acessibilidade (de contrato, por exemplo)?",
+    "o": [
+     "Não que eu saiba",
+     "Sim, preciso pensar nisso",
+     "Existe exigência formal"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "U-08",
@@ -598,7 +617,16 @@
     [
      "Auditoria completa e imutável"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você precisa saber quem mexeu em quê e quando (por exemplo, quem alterou um preço ou cancelou um pedido)?",
+    "o": [
+     "Sim, nas coisas importantes",
+     "Não precisa",
+     "Sim, de tudo, com registro que ninguém consiga apagar"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "D-01",
@@ -673,7 +701,17 @@
     [
      "Banco NoSQL (MongoDB, Firestore)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quanta informação você espera guardar nos próximos anos (clientes, pedidos, fotos)?",
+    "o": [
+     "Pouca: algumas centenas de registros",
+     "Média: milhares de registros",
+     "Muita: dezenas de milhares ou mais",
+     "Não sei"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "D-04",
@@ -714,7 +752,16 @@
     [
      "Sem backup (dados descartáveis)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Se os dados do sistema se perdessem hoje, quanto isso machucaria o seu negócio e quanto tempo você aceitaria ficar sem eles?",
+    "o": [
+     "Machucaria muito: não posso perder nada",
+     "Machucaria, mas aceito perder o último dia",
+     "Pouco: posso recomeçar"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "D-06",
@@ -732,7 +779,16 @@
     [
      "Não se aplica"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Seus clientes podem pedir para você apagar os dados deles. Você já recebeu esse tipo de pedido?",
+    "o": [
+     "Nunca recebi, mas quero estar preparado",
+     "Já recebi",
+     "Não guardo dados pessoais"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "I-01",
@@ -754,7 +810,17 @@
     [
      "WhatsApp, ERP, CRM ou outras APIs de terceiros"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "O sistema precisa conversar com outras coisas que você já usa (receber pagamento, mandar e-mail, WhatsApp, emitir nota, outro sistema)? Quais?",
+    "o": [
+     "Nenhuma",
+     "Receber pagamento",
+     "Enviar e-mails automáticos",
+     "Outros sistemas que já uso (conte quais)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "I-02",
@@ -776,7 +842,17 @@
     [
      "Asaas ou Pagar.me"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Como seus clientes pagam hoje, e como você gostaria que pagassem pelo sistema?",
+    "o": [
+     "Pix",
+     "Cartão",
+     "Boleto",
+     "Dinheiro ou combinado fora do sistema"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "I-03",
@@ -798,7 +874,16 @@
     [
      "Não existe: teremos de simular"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Os serviços com que o sistema vai conversar (operadora de pagamento, outro sistema) já lhe deram acesso de testes ou documentação?",
+    "o": [
+     "Sim",
+     "Não sei",
+     "Ainda não, preciso pedir"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "S-01",
@@ -819,7 +904,16 @@
     [
      "Já definido pelo cliente ou pela equipe dele"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você já tem site, sistema ou ferramenta pronta com a qual o novo precisa conviver? Alguém de confiança vai cuidar dele depois?",
+    "o": [
+     "Não, parto do zero",
+     "Sim, preciso conviver com algo existente (conte qual)",
+     "Alguém de confiança vai cuidar dele (conte quem e o que ele usa)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "S-02",
@@ -840,7 +934,17 @@
     [
      "Infraestrutura do cliente"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você já paga por hospedagem, domínio ou e-mail profissional? Quanto aceita gastar por mês para manter o sistema no ar?",
+    "o": [
+     "Não pago nada hoje",
+     "Já pago (conte onde)",
+     "Até R$ 100 por mês",
+     "Mais que isso, se valer a pena"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "S-03",
@@ -867,7 +971,16 @@
     [
      "Definida pelo cliente"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você já tem identidade visual (logotipo, cores) ou prefere um visual padrão, limpo?",
+    "o": [
+     "Tenho identidade visual",
+     "Prefiro um visual padrão, limpo",
+     "Quero ver opções antes"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "S-04",
@@ -885,7 +998,15 @@
     [
      "Há proibições (ex.: nuvem específica, licenças)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Existe alguma tecnologia, empresa ou ferramenta que você é obrigado a usar, ou que não pode usar (por contrato, hábito ou política)?",
+    "o": [
+     "Nenhuma",
+     "Sim (conte qual)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "S-05",
@@ -903,7 +1024,15 @@
     [
      "Sim, modelo próprio ou local"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você imagina o sistema tomando decisões ou escrevendo textos sozinho (responder clientes, sugerir preços, resumir informações)? O quê?",
+    "o": [
+     "Não",
+     "Sim, algo como (descreva)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "S-06",
@@ -927,7 +1056,16 @@
     [
      "Nativo (iOS e Android separados)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Seus clientes vão querer ter o sistema como aplicativo no celular, ou basta abrir no navegador?",
+    "o": [
+     "Basta abrir no navegador",
+     "Quero que apareça como aplicativo no celular",
+     "Quero nas lojas de aplicativos (App Store e Google Play)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "A-01",
@@ -948,7 +1086,16 @@
     [
      "Microsserviços (só com motivo claro)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você espera que o sistema cresça muito nos próximos 2 anos (muitos usuários, várias lojas, novas funções) ou que fique simples e enxuto?",
+    "o": [
+     "Simples e enxuto",
+     "Deve crescer aos poucos",
+     "Quero que cresça bastante"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "A-02",
@@ -966,7 +1113,16 @@
     [
      "Fila de jobs com reprocessamento"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Tem alguma tarefa que o sistema deveria fazer sozinho em horários certos (lembretes, fechamento do dia, relatórios)? Quais?",
+    "o": [
+     "Não",
+     "Sim, lembretes ou avisos",
+     "Sim, relatórios ou fechamentos automáticos"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "A-03",
@@ -984,7 +1140,15 @@
     [
      "Só produção"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você quer testar e aprovar as novidades numa versão de ensaio antes de irem para o sistema de verdade?",
+    "o": [
+     "Sim, quero aprovar antes",
+     "Não precisa, confio nos testes"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "A-04",
@@ -1005,7 +1169,15 @@
     [
      "Sim, com banco separado por cliente"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "O sistema será usado só pela sua empresa, ou outras empresas também terão o seu próprio espaço, cada uma vendo apenas os seus dados?",
+    "o": [
+     "Só pela minha empresa",
+     "Outras empresas terão o seu espaço separado"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "A-05",
@@ -1023,7 +1195,16 @@
     [
      "Métricas e painéis completos"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Se o sistema parar ou der erro, você quer ser avisado automaticamente? Por qual meio?",
+    "o": [
+     "Sim, por e-mail",
+     "Sim, por mensagem no celular",
+     "Não precisa"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "A-06",
@@ -1041,7 +1222,16 @@
     [
      "Pode ficar fora do ar em horários combinados"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Se o sistema ficar fora do ar por algumas horas, o que acontece com o seu negócio?",
+    "o": [
+     "Não é grave",
+     "Atrapalha, mas dá para esperar umas horas",
+     "É grave: perco vendas ou clientes"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "SG-01",
@@ -1069,7 +1259,16 @@
     [
      "Sem login"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Seus usuários precisam entrar com login e senha, ou o sistema pode ser aberto a qualquer pessoa? Prefere entrar com a conta Google?",
+    "o": [
+     "Login e senha",
+     "Entrar com a conta Google",
+     "Sem login: aberto a todos"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "SG-02",
@@ -1087,7 +1286,15 @@
     [
      "Não se aplica"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Todos os usuários podem ver e fazer tudo, ou algumas pessoas só podem ver certas coisas (por exemplo, o gerente não vê o lucro)?",
+    "o": [
+     "Todos veem e fazem tudo",
+     "Existem diferenças (conte quais)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "SG-03",
@@ -1102,7 +1309,16 @@
     [
      "Cofre de segredos (Doppler, Vault)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quem deve ter acesso às contas dos serviços do sistema (hospedagem, domínio, e-mail)?",
+    "o": [
+     "Só eu",
+     "Eu e outra pessoa de confiança (conte quem)",
+     "O desenvolvedor, enquanto cuida do sistema"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "SG-04",
@@ -1120,7 +1336,16 @@
     [
      "Não se aplica"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Seu negócio já tem política de privacidade ou termos de uso para clientes? Alguém cuida da parte jurídica?",
+    "o": [
+     "Já tenho",
+     "Não tenho e preciso",
+     "A parte jurídica é de outra pessoa ou empresa"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "SG-05",
@@ -1138,7 +1363,16 @@
     [
      "Auditoria externa"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Os dados que o sistema guarda são sensíveis (saúde, finanças, documentos)? Alguém exige uma revisão de segurança?",
+    "o": [
+     "Dados comuns",
+     "Dados sensíveis",
+     "Há exigência formal de auditoria"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "T-01",
@@ -1156,7 +1390,16 @@
     [
      "Apenas teste manual"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quanto erro você tolera nas primeiras semanas de uso? O sistema precisa funcionar perfeito desde o primeiro dia?",
+    "o": [
+     "Precisa funcionar perfeito desde o primeiro dia",
+     "Aceito pequenos ajustes no começo",
+     "Pode ser um piloto: ajusto com o uso"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "T-02",
@@ -1174,7 +1417,16 @@
     [
      "O cliente aprova só no final"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quem vai testar e dizer \"está bom, pode ir\" a cada entrega? Quanto tempo costuma levar para responder?",
+    "o": [
+     "Eu mesmo",
+     "Outra pessoa (conte quem)",
+     "Testamos juntos"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "T-03",
@@ -1198,7 +1450,16 @@
     [
      "Em todas as telas"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quer que eu teste o sistema como um cliente de verdade, passo a passo, antes de entregar?",
+    "o": [
+     "Sim, nos fluxos mais importantes",
+     "Sim, em todas as telas",
+     "Não precisa"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "T-04",
@@ -1213,7 +1474,15 @@
     [
      "Cópia anonimizada de dados reais"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Posso testar com dados inventados, ou você prefere que eu use uma cópia dos seus dados reais, sem identificar ninguém?",
+    "o": [
+     "Dados inventados",
+     "Cópia dos dados reais sem identificar pessoas"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "T-05",
@@ -1231,7 +1500,16 @@
     [
      "Teste de carga completo"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Em dia de muito movimento (promoção, fim de mês), quantas pessoas podem usar ao mesmo tempo?",
+    "o": [
+     "Poucas (até 10)",
+     "Dezenas",
+     "Centenas ou mais"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "DP-01",
@@ -1249,7 +1527,15 @@
     [
      "O cliente publica"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quando uma novidade estiver pronta, você quer que ela entre no ar automaticamente ou prefere aprovar antes?",
+    "o": [
+     "Automaticamente",
+     "Só depois da minha aprovação"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "DP-02",
@@ -1276,7 +1562,16 @@
     [
      "Sem domínio"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "O sistema vai ter um endereço próprio (por exemplo, www.suaempresa.com.br)? Você já tem esse domínio?",
+    "o": [
+     "Já tenho o domínio",
+     "Preciso registrar um",
+     "Pode ser um endereço provisório por enquanto"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "DP-03",
@@ -1294,7 +1589,15 @@
     [
      "Na minha conta, como serviço contínuo"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "As contas dos serviços do sistema (hospedagem, domínio, e-mail) ficam em nome de quem?",
+    "o": [
+     "No nome da minha empresa",
+     "No nome do desenvolvedor, com transferência no fim"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "DP-04",
@@ -1312,7 +1615,15 @@
     [
      "Sem plano definido"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Se uma novidade der problema no ar, o que você prefere: voltar na hora para a versão anterior ou corrigir rápido com o problema ainda acontecendo?",
+    "o": [
+     "Voltar na hora para a versão anterior",
+     "Corrigir rápido"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "DP-05",
@@ -1330,7 +1641,16 @@
     [
      "Nada"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quem deve ser avisado se o sistema sair do ar, e por qual meio?",
+    "o": [
+     "Eu, por e-mail",
+     "Eu, por mensagem no celular",
+     "Outra pessoa (conte quem)"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "E-01",
@@ -1397,7 +1717,16 @@
     [
      "A definir em contrato"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Depois de pronto, o sistema e o código ficam sendo seus ou do desenvolvedor? Você quer poder levar para outro profissional se precisar?",
+    "o": [
+     "Seus, com todos os direitos",
+     "Do desenvolvedor, com direito de uso para você",
+     "A combinar em contrato"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "E-04",
@@ -1415,7 +1744,16 @@
     [
      "Só o código"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "O que você quer receber ao final, além do sistema funcionando?",
+    "o": [
+     "Só o sistema",
+     "Manual de como usar",
+     "Documento explicando como o sistema foi feito"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "E-05",
@@ -1476,7 +1814,15 @@
     [
      "Informal, por mensagem"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Quando quiser mudar alguma coisa depois, você prefere pedir por mensagem informal ou por um pedido registrado, com prazo e valor?",
+    "o": [
+     "Pedido registrado",
+     "Por mensagem, informalmente"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "M-03",
@@ -1494,7 +1840,16 @@
     [
      "Automática (Dependabot)"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Você quer que o sistema seja revisado e atualizado de tempos em tempos para continuar seguro? Com que frequência?",
+    "o": [
+     "Sim, a cada 3 meses",
+     "Só quando surgir um problema",
+     "Automaticamente, sem eu precisar pedir"
+    ],
+    "sugerida": true
+   }
   },
   {
    "id": "M-04",
@@ -1509,7 +1864,16 @@
     [
      "Prazo definido para falhas críticas"
     ]
-   ]
+   ],
+   "neg": {
+    "q": "Se algo quebrar, em quanto tempo você precisa que seja consertado?",
+    "o": [
+     "Na hora (urgente)",
+     "No mesmo dia",
+     "Em até 2 ou 3 dias"
+    ],
+    "sugerida": true
+   }
   }
  ]
 }

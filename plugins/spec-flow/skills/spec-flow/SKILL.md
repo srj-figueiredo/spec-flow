@@ -59,11 +59,11 @@ Objetivo: partir do escopo, em texto livre, sem formulário prévio.
 Leia `reference/entrevista.md` antes de começar. **O escopo comanda a entrevista**; o banco de perguntas é só um checklist para não esquecer o básico.
 
 1. **Monte o plano de perguntas a partir do escopo.**
-   - **Perguntas do escopo primeiro:** tudo que é específico daquele negócio e que o escopo deixou aberto, em quantas forem necessárias: `SPEC add --bloco <id> --q "..." --opt "<a que você faria>" --opt "<alternativa>" --why "..." --motivo "escopo: <trecho>"` (elas ficam antes da base no bloco).
+   - **Perguntas do escopo primeiro:** tudo que é específico daquele negócio e que o escopo deixou aberto, em quantas forem necessárias: `SPEC add --bloco <id> --q "..." --opt "<a que você faria>" --opt "<alternativa>" --why "..." --motivo "escopo: <trecho>" --neg "<a mesma pergunta em linguagem de NEGÓCIO>" [--neg-opt "..."]` (elas ficam antes da base no bloco). **`--neg` é obrigatório:** toda pergunta precisa ter a versão para o dono do negócio, mesmo as técnicas (reescreva como uma pergunta sobre o negócio dele que lhe permita decidir o ponto técnico: ex. banco de dados → "quanta informação você espera guardar nos próximos anos?").
    - **A base como checklist:** para cada pergunta da base, ou o escopo já responde (`SPEC dica <ID> "<o que o escopo diz>"`, o usuário confirma), ou **não se aplica** (`SPEC descartar <ID> --motivo "..."`: fica registrada no SPEC com o motivo), ou fica. Onde o contexto troca a melhor opção, `SPEC rec <ID> <n> --nota "..."`.
    - `SPEC plano` mostra o resultado por bloco (escopo × base × descartadas × para o cliente).
 2. **Proponha a lista inicial do cliente e marque-a na lista completa.** Separe o que é de **negócio** (o dono do negócio responde melhor que o desenvolvedor). `SPEC lista-cliente` mostra o que já está direcionado, o que **você pré-selecionou** e as demais perguntas com texto pronto. Sua pré-seleção: `SPEC sugerir-cliente --ids A,B,C` (usa o texto pronto do banco) ou, para perguntas do escopo, reescreva em linguagem de negócio com `SPEC cliente <ID> --sugerir --texto "..." [--opt ...]`. Na lista completa as pré-selecionadas aparecem marcadas com **📌** e com o texto pronto à vista, e há um filtro "📌 Sugeridas p/ cliente". **Mostre a lista ao usuário e peça aprovação.**
-   - **A escolha continua do usuário, pergunta a pergunta:** botão **Enviar ao cliente (texto sugerido)** (um toque) ou **Direcionar ao dono do negócio** (abre o texto para editar, com opções e upload). **Qualquer pergunta com texto pronto pode ir ao cliente, mesmo fora da sua seleção**; e ele pode simplesmente não enviar as que você marcou.
+   - **A escolha continua do usuário, pergunta a pergunta:** botão **Enviar ao cliente (texto sugerido)** (um toque) ou **Direcionar ao dono do negócio** (abre o texto para editar, com opções e upload). **Toda pergunta tem texto pronto em linguagem de negócio, inclusive as técnicas, e qualquer uma pode ir ao cliente, mesmo fora da sua seleção**; e ele pode simplesmente não enviar as que você marcou.
    - Aprovadas: `SPEC cliente-lote --sugeridas` (as 📌 ainda não enviadas) ou `--ids A,B,C`; use `SPEC cliente <ID> ...` quando precisar de upload (`--arquivo`) ou design (`--visual`, `--ref`). Depois `SPEC export-cliente` e publique (`reference/cliente.md`).
 3. **Entregue os dois links:** a entrevista completa (só dele) e a página do cliente. Diga qual é qual e que o link do cliente não deve ser divulgado.
 4. **Escolha o canal da entrevista completa:**
@@ -156,7 +156,8 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `descartar ID --motivo ".." [--desfazer]` | pergunta da base que não se aplica (fica registrada) |
 | `lista-cliente [--json]` | direcionadas, 📌 sugeridas por você e demais com texto pronto |
 | `sugerir-cliente --ids A,B [--remover]` / `cliente-lote --ids A,B \| --sugeridas` | marca/desmarca a pré-seleção / direciona várias de uma vez |
-| `add --bloco B [--bloco-nome N] --q ".." --opt ".." [--opt ..] [--why ..] [--motivo ..] [--multi] [--design]` | pergunta do escopo (`--design` = pergunta de design) |
+| `add --bloco B --q ".." --opt ".." --neg ".." [--neg-opt ..] [--bloco-nome N] [--why ..] [--motivo ..] [--multi] [--design]` | pergunta do escopo; `--neg` (versão de negócio) é obrigatório; `--design` = pergunta de design |
+| `atualizar-textos` | dá às perguntas da base os textos de negócio que ainda não tinham (também roda no `export-web`) |
 | `bypass-all [--bloco B] [--motivo ..]` | pula pendentes em lote |
 | `varredura` | registra a varredura de lacunas |
 | `export-web` | gera `.spec/entrevista.html` (página do celular) |

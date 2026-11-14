@@ -721,8 +721,11 @@ def cmd_add(a, raiz):
         a.bloco_nome = a.bloco.capitalize()
     if a.bloco_nome and not any(b["id"] == a.bloco for b in e["blocos"]):
         e["blocos"].append({"id": a.bloco, "nome": a.bloco_nome})
+    if not (a.neg or "").strip():
+        die("informe --neg com a pergunta em linguagem de NEGÓCIO (obrigatório): é o texto que o botão 'Direcionar ao dono do negócio' "
+            "já abre pronto para enviar ao cliente. Ex.: --neg \"Hoje, como você controla os pedidos?\" [--neg-opt \"Caderno\" --neg-opt \"Planilha\"]")
     p = {"id": qid, "bloco": a.bloco, "q": a.q, "why": a.why or "", "o": [[x] for x in a.opt or []],
-         "origem": "escopo"}
+         "origem": "escopo", "neg": {"q": a.neg.strip(), "o": a.neg_opt or [], "sugerida": True}}
     if a.motivo:
         p["motivo"] = a.motivo
     if getattr(a, "design", False):
@@ -742,9 +745,34 @@ def cmd_add(a, raiz):
     print(f"{qid} adicionada ao bloco {a.bloco}.")
 
 
+def _completar_textos(e):
+    """Projetos criados antes do banco ter o texto de negócio de todas as perguntas recebem os textos novos."""
+    banco = json.load(open(os.path.join(SKILL, "data", "question-bank.json"), encoding="utf-8"))
+    por_id = {q["id"]: q for q in banco["perguntas"]}
+    n = 0
+    for p in e["perguntas"]:
+        b = por_id.get(p["id"])
+        if b and p.get("origem", "base") == "base":
+            if not (p.get("neg") or {}).get("q") and b.get("neg"):
+                p["neg"] = dict(b["neg"])
+                n += 1
+            if b.get("design") and not p.get("design"):
+                p["design"] = True
+    return n
+
+
+def cmd_atualizar_textos(a, raiz):
+    _, e = carregar(raiz)
+    n = _completar_textos(e)
+    salvar_entrev(raiz, e)
+    print(f"{n} pergunta(s) da base receberam o texto em linguagem de negócio.")
+
+
 def cmd_export_web(a, raiz):
     """Gera .spec/entrevista.html: a página da entrevista (para publicar como artifact e responder no celular)."""
     md, e = carregar(raiz)
+    if _completar_textos(e):
+        salvar_entrev(raiz, e)
     blocos = [b for b in e["blocos"] if any(p["bloco"] == b["id"] for p in e["perguntas"])]
     dados = {"projeto": S.titulo_projeto(md), "blocos": blocos, "perguntas": e["perguntas"],
              "respostas": {p["id"]: p["resposta"] for p in e["perguntas"] if p.get("resposta")}}
@@ -1228,8 +1256,10 @@ def cmd_lista_cliente(a, raiz):
     for p in sug:
         print(f"  [{p['id']}] {p['neg']['q']}{'  (design: leva opções visuais)' if p.get('design') else ''}")
     print(f"\nOutras com texto pronto, que você pode escolher ({len(outras)}):")
-    for p in outras:
+    for p in (outras if a.todas else outras[:8]):
         print(f"  [{p['id']}] {p['neg']['q']}")
+    if not a.todas and len(outras) > 8:
+        print(f"  ... e mais {len(outras) - 8} (use --todas para listar)")
     print("\nAprovando: `cliente-lote --sugeridas` ou `cliente-lote --ids A,B`; depois `export-cliente`. "
           "Para mudar a seleção: `sugerir-cliente --ids A,B` / `--remover`.")
 
@@ -1415,12 +1445,16 @@ def main():
     p.add_argument("--why")
     p.add_argument("--opt", action="append")
     p.add_argument("--multi", action="store_true")
+    p.add_argument("--neg", help="OBRIGATÓRIO: a mesma pergunta em linguagem de negócio, pronta para o dono do negócio (o botão Direcionar já abre com ela)")
+    p.add_argument("--neg-opt", action="append", help="opção de resposta em linguagem de negócio (repita; opcional)")
     p.add_argument("--design", action="store_true", help="marca como pergunta de design (ao direcionar ao cliente exige opções visuais ou referências)")
     p.add_argument("--motivo", help="o que no briefing ou numa resposta anterior gerou esta pergunta (ex.: 'briefing: marketplace')")
     p.set_defaults(f=cmd_add)
 
     p = sp.add_parser("varredura", help="registra que a varredura de lacunas foi feita")
     p.set_defaults(f=cmd_varredura)
+    p = sp.add_parser("atualizar-textos", help="dá às perguntas da base o texto em linguagem de negócio que ainda não tinham")
+    p.set_defaults(f=cmd_atualizar_textos)
     p = sp.add_parser("export-web", help="gera .spec/entrevista.html (página do celular) com as perguntas e respostas atuais")
     p.set_defaults(f=cmd_export_web)
     p = sp.add_parser("import-answers", help="importa respostas vindas da página do celular")
@@ -1472,6 +1506,7 @@ def main():
     p.set_defaults(f=cmd_plano)
     p = sp.add_parser("lista-cliente", help="lista inicial do cliente: direcionadas + sugeridas")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--todas", action="store_true", help="lista todas as perguntas com texto pronto")
     p.set_defaults(f=cmd_lista_cliente)
     p = sp.add_parser("sugerir-cliente", help="marca na lista completa as perguntas que eu sugiro para o cliente (texto pronto)")
     p.add_argument("--ids", required=True)

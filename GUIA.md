@@ -53,7 +53,7 @@ Diga: *"quero começar um projeto com a spec-flow"*. O Claude cria o projeto (ti
 Depois de montar o plano, o Claude **propõe a primeira lista para o dono do negócio**: separa o que é de negócio e reescreve em linguagem de negócio (com opções visuais nas de design). Na lista completa, **o que ele pré-selecionou aparece marcado com 📌**, com o texto pronto à vista, e há um filtro "📌 Sugeridas p/ cliente". **A escolha final é sua**, pergunta a pergunta: **Enviar ao cliente (texto sugerido)** com um toque, **Direcionar ao dono do negócio** para editar o texto, mandar uma que ele não marcou (qualquer pergunta com texto pronto serve) ou não mandar uma que ele marcou. Pedir: *"mostra a lista do cliente"*.
 
 ### Direcionar ao dono do negócio
-Em cada pergunta há o botão **Direcionar ao dono do negócio**: a pergunta vem reescrita em linguagem de negócio (editável), com opções opcionais e a caixa "o cliente precisa enviar um arquivo". 25 perguntas da base já trazem a sugestão pronta. A pergunta fica **aguardando cliente** (roxo).
+Em cada pergunta há o botão **Direcionar ao dono do negócio**, e ele **sempre abre com a pergunta já pronta**, em linguagem de negócio e com opções de resposta, para você só conferir, editar e enviar. Isso vale também para as perguntas técnicas (banco de dados, hospedagem, segurança...), que viram uma pergunta sobre o negócio dele que permite decidir o ponto técnico. Há ainda a caixa "o cliente precisa enviar um arquivo". A pergunta fica **aguardando cliente** (roxo).
 
 ### Página do cliente (Netlify)
 Pedir: *"publica a página do cliente"*. O Claude gera a página, cria um site com **endereço aleatório** (não indexável, sem senha: quem tem o link acessa) e te entrega o link.
@@ -100,7 +100,7 @@ O `CLAUDE.md` do projeto manda toda sessão nova invocar a skill. Ela mostra a f
 | `next [-n 4] [--bloco B] [--json]` | próximas perguntas |
 | `answer ID --opt N \| --text ".." \| --bypass` | registra resposta |
 | `dica ID ".."` / `rec ID N [--nota ..]` | personaliza pergunta da base |
-| `add --bloco B --q ".." --opt ".." [--why ..] [--motivo ..] [--multi] [--design]` | pergunta do escopo |
+| `add --bloco B --q ".." --opt ".." --neg ".." [--why ..] [--motivo ..] [--multi] [--design]` | pergunta do escopo (`--neg` = versão de negócio, obrigatória) |
 | `plano` / `descartar ID --motivo ..` | plano de perguntas por bloco / pergunta da base que não se aplica |
 | `lista-cliente` | direcionadas, 📌 sugeridas e demais com texto pronto |
 | `sugerir-cliente --ids A,B [--remover]` / `cliente-lote --ids A,B \| --sugeridas` | marca a pré-seleção / direciona várias de uma vez |

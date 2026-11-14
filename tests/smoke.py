@@ -79,6 +79,11 @@ def teste_init_e_banco():
     verifica("ids do banco são únicos", len(ids) == len(set(ids)))
     verifica("toda pergunta tem opção, bloco válido e motivo", all(q["o"] and q.get("why") and q["bloco"] in [b["id"] for b in banco["blocos"]] for q in banco["perguntas"]))
     verifica("U-06 é pergunta de design", pergunta(d, "U-06").get("design") is True)
+    verifica("TODA pergunta do banco tem texto em linguagem de negócio pronto", all((q.get("neg") or {}).get("q") for q in banco["perguntas"]),
+             str([q["id"] for q in banco["perguntas"] if not (q.get("neg") or {}).get("q")]))
+    verifica("textos de negócio não usam jargão técnico",
+             not any(w in (q["neg"]["q"] + " ".join(q["neg"]["o"])).lower() for q in banco["perguntas"]
+                     for w in ("api", "framework", "docker", "kubernetes", "postgres", "oauth", "ci/cd", "sla", "multi-tenant", "serverless", "devops")))
     shutil.rmtree(d)
     return n
 
@@ -94,7 +99,8 @@ def teste_entrevista():
     verifica("I-02 (pagamento) oculta antes de I-01", all(p["id"] != "I-02" for p in json.loads(sp(d, "next", "-n", "99", "--json")[1])))
     sp(d, "answer", "I-01", "--opt", "2,3")
     verifica("I-02 aparece depois de marcar pagamento", any(p["id"] == "I-02" for p in json.loads(sp(d, "next", "-n", "99", "--json")[1])))
-    verifica("add pergunta do escopo", sp(d, "add", "--bloco", "negocio", "--q", "Pergunta nova?", "--opt", "a", "--opt", "b", "--motivo", "briefing: x")[0])
+    verifica("add sem texto de negócio (--neg) é recusado", "--neg" in sp(d, "add", "--bloco", "negocio", "--q", "X?", "--opt", "a", falha=True)[1])
+    verifica("add pergunta do escopo", sp(d, "add", "--neg", "Texto para o dono do negócio?", "--bloco", "negocio", "--q", "Pergunta nova?", "--opt", "a", "--opt", "b", "--motivo", "briefing: x")[0])
     verifica("pergunta do escopo marcada", pergunta(d, "X-01").get("origem") == "escopo")
     verifica("dica registrada sem responder", sp(d, "dica", "D-01", "planilha")[0] and not pergunta(d, "D-01").get("resposta"))
     verifica("rec troca a recomendada", sp(d, "rec", "D-01", "2")[0] and pergunta(d, "D-01")["o"][0][0].startswith("Sim, importar"))
@@ -280,7 +286,7 @@ def teste_features_tasks(d):
 def teste_fluxo_guiado():
     print("• fluxo guiado pelo escopo: descartar, plano, lista inicial do cliente")
     d = novo(prof="m")
-    verifica("add insere pergunta do escopo antes da base no bloco", (sp(d, "add", "--bloco", "negocio", "--q", "Do escopo?", "--opt", "a")[0]
+    verifica("add insere pergunta do escopo antes da base no bloco", (sp(d, "add", "--neg", "Texto para o dono do negócio?", "--bloco", "negocio", "--q", "Do escopo?", "--opt", "a")[0]
              and [p["id"] for p in entrev(d)["perguntas"] if p["bloco"] == "negocio"][0] == "X-01"))
     verifica("descartar exige motivo", sp(d, "descartar", "S-06", falha=True)[0])
     verifica("descartar pergunta que não se aplica", sp(d, "descartar", "A-02", "--motivo", "sem processamento em segundo plano")[0])
@@ -296,7 +302,8 @@ def teste_fluxo_guiado():
     lc = json.loads(out)
     verifica("sem seleção minha, há textos prontos para o usuário escolher", ok and lc["sugeridas"] == [] and len(lc["com_texto_pronto"]) >= 10 and all(x["texto"] for x in lc["com_texto_pronto"]))
     verifica("texto pronto de design é sinalizado", any(x["design"] for x in lc["com_texto_pronto"]))
-    verifica("sugerir-cliente exige texto de negócio", sp(d, "sugerir-cliente", "--ids", "S-01", falha=True)[0])
+    verifica("sugerir-cliente recusa pergunta inexistente", sp(d, "sugerir-cliente", "--ids", "ZZ-99", falha=True)[0])
+    verifica("pergunta técnica (stack) já tem versão de negócio pronta", "tecnologia" in pergunta(d, "S-04")["neg"]["q"].lower() or "obrigado" in pergunta(d, "S-04")["neg"]["q"].lower())
     verifica("sugerir-cliente marca as pré-selecionadas", sp(d, "sugerir-cliente", "--ids", "N-03,U-06,D-01")[0] and pergunta(d, "N-03")["selecao_cliente"] == "sugerida")
     lc = json.loads(sp(d, "lista-cliente", "--json")[1])
     verifica("lista separa sugeridas por mim das demais com texto pronto", {x["id"] for x in lc["sugeridas"]} == {"N-03", "U-06", "D-01"} and all(x["id"] not in {"N-03", "U-06", "D-01"} for x in lc["com_texto_pronto"]))
@@ -317,7 +324,9 @@ def teste_fluxo_guiado():
 def teste_cliente(d):
     print("• link do cliente: direcionar, design, arquivo, registro cumulativo")
     d = novo(nome="Loja <script>alert(1)</script> da Ana", prof="m")
-    verifica("direcionar sem texto nem sugestão é recusado", sp(d, "cliente", "S-01", falha=True)[0])
+    verifica("direcionar pergunta TÉCNICA sem --texto usa a versão de negócio pronta",
+             sp(d, "cliente", "S-01")[0] and pergunta(d, "S-01")["cliente"]["texto"] == pergunta(d, "S-01")["neg"]["q"] and "banco" not in pergunta(d, "S-01")["cliente"]["texto"].lower())
+    sp(d, "cliente", "S-01", "--remover")
     verifica("sugestão do banco é usada", sp(d, "cliente", "N-03")[0])
     verifica("design sem visual/ref é recusado", "DESIGN" in sp(d, "cliente", "U-06", "--texto", "Visual?", falha=True)[1])
     verifica("ref com esquema perigoso é recusada", sp(d, "cliente", "U-06", "--texto", "V?", "--ref", "javascript:alert(1)", falha=True)[0])
@@ -378,7 +387,7 @@ def teste_cliente(d):
     sp(d, "revisao-ok", "U-01")
     verifica("liberado depois de resolver", sp(d, "gate")[0])
     # --- rodada 2: respostas anteriores travadas
-    sp(d, "add", "--bloco", "negocio", "--q", "Pedidos por mês?", "--opt", "até 50", "--motivo", "cliente: vender mais")
+    sp(d, "add", "--neg", "Texto para o dono do negócio?", "--bloco", "negocio", "--q", "Pedidos por mês?", "--opt", "até 50", "--motivo", "cliente: vender mais")
     sp(d, "cliente", "X-01", "--texto", "Quantos pedidos por mês?")
     sp(d, "export-cliente")
     h = ler(os.path.join(d, ".spec", "cliente", "index.html"))
