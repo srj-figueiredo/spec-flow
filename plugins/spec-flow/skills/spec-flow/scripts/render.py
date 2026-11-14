@@ -162,6 +162,12 @@ def render_painel(raiz, md, e):
         sem = [p["id"] for p in espera if not p.get("resposta_cliente")]
         if sem:
             pend.append(("⏳", "w", f"Aguardando o dono do negócio: {len(sem)} pergunta(s) ({', '.join(sem[:8])}{'...' if len(sem) > 8 else ''})"))
+        rev = [p["id"] for p in ent[0] if ent[1].estado_p(p) == "revisar"]
+        if rev:
+            pend.append(("↻", "c", f"Decisões a REVISAR (afetadas por resposta do cliente): {', '.join(rev)}"))
+        nao_ver = ent[1]._nao_verificadas(e)
+        if nao_ver:
+            pend.append(("🔍", "w", f"{len(nao_ver)} resposta(s) do cliente sem verificação de impacto"))
         if trad:
             pend.append(("✎", "w", f"Cliente respondeu, falta traduzir para decisão técnica: {', '.join(trad)}"))
     for t in tasks:

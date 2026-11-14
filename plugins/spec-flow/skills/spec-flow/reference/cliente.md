@@ -33,6 +33,37 @@ Pré-requisito: token do Netlify (nuvem: credencial salva para `api.netlify.com`
 
 Limitação da nuvem: a rede do ambiente não alcança `*.netlify.app`, então você não consegue enviar um teste ao formulário por conta própria. Peça ao usuário para testar pelo celular.
 
+## Arquivos e design
+
+**Upload de arquivo.** Se o cliente precisar enviar algo (planilha, logotipo, contrato), direcione a pergunta com `--arquivo` (e `--arquivo-desc "o que enviar"`): a página ganha o campo de envio.
+
+- Limites do Netlify Forms: **8 MB por envio** (a requisição inteira, somando todos os campos), **um arquivo por campo** (um campo por pergunta) e **30 segundos** de limite de envio.
+- A página avisa o limite ao cliente e **barra arquivos acima de 7,5 MB**, marcando sozinha a opção **"Meu arquivo é maior que 8 MB"**: nesse caso o desenvolvedor entra em contato para pegar o arquivo. Na importação isso vira "Arquivo grande: o desenvolvedor entrará em contato para pegar" e é pendência sua.
+- A página pede para não enviar senhas nem documentos pessoais sensíveis (arquivo com dado pessoal exige cuidado extra no Netlify).
+- Ainda **não verificado**: o formato em que o arquivo aparece na leitura dos envios e se o link para baixar exige login no Netlify. A importação aceita objeto (`url`, `filename`, `size`) ou texto. Confira o primeiro arquivo real de cada projeto.
+
+**Perguntas de design.** Nenhuma pergunta de design vai ao cliente só com texto. Marque com `--design` (a base já marca U-06) e ofereça **opções visuais** e/ou **links de referência**, pelo menos um:
+
+- `--visual paleta` (cores), `--visual layout` (desenhos da organização da tela), `--visual tipografia` (estilo de letra): cada tipo mostra opções padrão como cartões visuais para tocar.
+- Opções próprias: `--visual-opt "paleta|Nome|#111111,#f59e0b,#fff7ed"`, `--visual-opt "layout|Nome|painel"` (hero, painel, grade ou lista), `--visual-opt "tipografia|Nome|Georgia, serif"`.
+- Links para o cliente olhar: `--ref "Rótulo|https://..."` (repita). O cliente também ganha um campo para colar os links de sites que ele acha bonitos.
+- Se uma pergunta de design chegar ao cliente sem nada disso, `export-cliente` aplica paleta e layout padrão e avisa.
+- Use referências reais que você conferiu; não invente endereços.
+
+## Verificação de impacto (obrigatória a cada resposta do cliente)
+
+Há duas listas, a completa e a do negócio, e **a resposta do cliente pode mudar uma decisão já fechada na lista completa**. Exemplo: o cliente diz "os lucros são só meus", e a decisão de perfis (administrador e gerente com o mesmo acesso a relatórios) deixa de valer.
+
+Depois de **todo** `import-cliente`:
+
+1. `SPEC impacto` mostra as respostas novas e todas as decisões já tomadas, por bloco.
+2. Para cada resposta nova, pergunte: ela contradiz, restringe ou muda alguma dessas decisões? Considere também decisões de outros blocos (permissões, dados, segurança, prazo, custo, stack).
+3. Para cada decisão afetada: `SPEC revisar ID --motivo "<o que mudou>" --origem <ID da pergunta do cliente>`. Ela vira **a revisar** (laranja, com a decisão anterior), conta como pendente e impede sair da entrevista.
+4. Mostre ao usuário a lista de afetadas e a proposta de nova decisão. Com o "ok": `SPEC answer ID ...` (a decisão anterior vai para o histórico da pergunta e a revisão se encerra) ou `SPEC revisao-ok ID --nota "mantida porque..."`.
+5. Só então `SPEC impacto-ok`. Sem isso, `gate` e `fase spec` barram, e o painel mostra a pendência.
+
+Se a resposta do cliente também gerar dúvida nova, crie a pergunta (`SPEC add`) e, se for do negócio, direcione (`SPEC cliente`): abre a próxima rodada.
+
 ## A página é um registro acumulativo (somente leitura)
 
 A mesma página serve de **registro histórico** do cliente e de **formalização** das definições:

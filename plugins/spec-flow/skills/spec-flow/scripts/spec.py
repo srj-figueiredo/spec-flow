@@ -15,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import specmd as S  # noqa: E402
+import cliente_html as CH  # noqa: E402
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(AQUI)
@@ -98,6 +99,8 @@ def visiveis(e):
 
 def estado_p(p):
     r = p.get("resposta")
+    if r and (p.get("revisao") or {}).get("aberta"):
+        return "revisar"
     if not r:
         return "aguardando" if (p.get("cliente") or {}).get("ativa") else "pendente"
     return "bypass" if r["tipo"] == "bypass" else "respondida"
@@ -112,12 +115,12 @@ def nome_bloco(e, bid):
 
 def contagem(e):
     vs = visiveis(e)
-    c = {"total": len(vs), "respondidas": 0, "bypass": 0, "pendentes": 0, "aguardando": 0,
+    c = {"total": len(vs), "respondidas": 0, "bypass": 0, "pendentes": 0, "aguardando": 0, "revisar": 0,
          "base": sum(1 for p in vs if p.get("origem", "base") == "base"),
          "escopo": sum(1 for p in vs if p.get("origem") == "escopo")}
     for p in vs:
         k = estado_p(p)
-        c[{"respondida": "respondidas", "bypass": "bypass", "aguardando": "aguardando"}.get(k, "pendentes")] += 1
+        c[{"respondida": "respondidas", "bypass": "bypass", "aguardando": "aguardando", "revisar": "revisar"}.get(k, "pendentes")] += 1
     return c
 
 
@@ -150,10 +153,14 @@ def sync_decisoes(raiz):
             elif k == "bypass":
                 dec = "PENDENTE (bypass)" + (f": {r['texto']}" if r.get("texto") else "")
                 origem = "bypass"
+            elif k == "revisar":
+                rv = p["revisao"]
+                dec = f"{texto_resposta(p)} — REVISAR: {rv.get('motivo', '')} (origem {rv.get('origem', '?')})"
+                origem = "revisar"
             elif k == "aguardando":
                 rc = p.get("resposta_cliente")
                 if rc:
-                    dec = "RESPOSTA DO CLIENTE (a traduzir): " + " ".join(x for x in [rc.get("opcao", ""), rc.get("texto", "")] if x)
+                    dec = "RESPOSTA DO CLIENTE (a traduzir): " + " · ".join(CH.resumo(rc))
                 else:
                     dec = "AGUARDANDO CLIENTE: " + (p["cliente"].get("texto") or p["q"])
                 origem = "cliente"
@@ -175,7 +182,7 @@ def sync_decisoes(raiz):
             linhas.append("- " + it["id"] + " · " + _uma_linha(it["pergunta"]))
             for k, r in enumerate(it["respostas"]):
                 quem = f" · {r['respondente']}" if r.get("respondente") else ""
-                txt = _uma_linha(" ".join(x for x in [r.get("opcao", ""), r.get("texto", "")] if x))
+                txt = _uma_linha(" · ".join(CH.resumo(r)))
                 linhas.append(f"  - {'resposta' if k == 0 else 'complemento'} ({_fmt(r['em'])}{quem}): {txt}")
         linhas.append("")
     novo = "\n".join(linhas).rstrip() + "\n"
@@ -189,7 +196,7 @@ def sync_decisoes(raiz):
 def montar_pergunta_json(e, p, pos, total):
     return {"id": p["id"], "bloco": nome_bloco(e, p["bloco"]), "pos": pos, "total": total, "q": p["q"],
             "why": p.get("why", ""), "multi": bool(p.get("multi")), "origem": p.get("origem", "base"),
-            "motivo": p.get("motivo", ""), "dica": p.get("dica", ""), "neg": p.get("neg"), "cliente": p.get("cliente"),
+            "motivo": p.get("motivo", ""), "dica": p.get("dica", ""), "revisao": p.get("revisao"), "neg": p.get("neg"), "cliente": p.get("cliente"),
             "opcoes": [{"n": i + 1, "rotulo": o[0], "nota": (o[1] if len(o) > 1 else ""), "recomendada": i == 0}
                        for i, o in enumerate(p["o"])]}
 
@@ -266,6 +273,12 @@ def cmd_status(a, raiz):
         if c["aguardando"]:
             print(f"Aguardando o cliente: {c['aguardando']} perguntas "
                   f"({sum(1 for p in visiveis(e) if p.get('resposta_cliente') and estado_p(p) == 'aguardando')} já com resposta para traduzir)")
+        if c["revisar"]:
+            print(f"DECISÕES A REVISAR (afetadas por resposta do cliente): {c['revisar']} → "
+                  + ", ".join(p["id"] for p in visiveis(e) if estado_p(p) == "revisar"))
+        nv = _nao_verificadas(e)
+        if nv:
+            print(f"Respostas do cliente SEM verificação de impacto: {len(nv)} (rode `impacto`)")
         print(f"Varredura de lacunas: {S.ficha(md).get('varredura_lacunas', 'não')}")
         if d["proximas"]:
             print("Próximas perguntas: " + ", ".join(d["proximas"]))
@@ -282,7 +295,7 @@ def cmd_status(a, raiz):
 def cmd_next(a, raiz):
     _, e = carregar(raiz)
     vs = visiveis(e)
-    pend = [(i + 1, p) for i, p in enumerate(vs) if estado_p(p) == "pendente"]
+    pend = [(i + 1, p) for i, p in enumerate(vs) if estado_p(p) in ("pendente", "revisar")]
     if a.bloco:
         pend = [(i, p) for i, p in pend if p["bloco"] == a.bloco]
     pend = pend[:a.n]
@@ -298,9 +311,27 @@ def cmd_next(a, raiz):
         print(f"  (por quê: {q['why']})")
         if q.get("dica"):
             print(f"  (no briefing: {q['dica']})")
+        if (q.get("revisao") or {}).get("aberta"):
+            print(f"  (REVISAR: {q['revisao']['motivo']} · origem {q['revisao'].get('origem', '?')} · decisão anterior: {q['revisao'].get('decisao_anterior', '')})")
         for o in q["opcoes"]:
             print(f"   {o['n']}. {o['rotulo']}{' (recomendada)' if o['recomendada'] else ''}")
         print("   L. Resposta livre   P. Pular (bypass)")
+
+
+def _arquivar(p, motivo=""):
+    """Guarda a decisão anterior no histórico da pergunta e encerra a revisão aberta (a decisão foi refeita)."""
+    antiga = p.get("resposta")
+    if antiga:
+        p.setdefault("historico", []).append({"resposta": antiga, "texto": texto_resposta(p), "substituida_em": S.agora(), "motivo": motivo})
+    rv = p.get("revisao")
+    if rv and rv.get("aberta"):
+        rv["aberta"] = False
+        rv["resolvida_em"] = S.agora()
+        rv["resultado"] = "decisão refeita"
+
+
+def _nao_verificadas(e):
+    return [(p["id"], r) for p in e["perguntas"] for r in (p.get("respostas_cliente") or []) if not r.get("verificada")]
 
 
 def cmd_answer(a, raiz):
@@ -323,6 +354,7 @@ def cmd_answer(a, raiz):
         r = {"tipo": "livre", "texto": a.text, "origem": "livre", "em": S.agora()}
     else:
         die("informe --opt N, --text \"...\" ou --bypass")
+    _arquivar(p, (p.get("revisao") or {}).get("motivo", "") if (p.get("revisao") or {}).get("aberta") else "nova resposta")
     p["resposta"] = r
     salvar_entrev(raiz, e)
     sync_decisoes(raiz)
@@ -356,6 +388,31 @@ def cmd_rec(a, raiz):
     print(f"{a.id}: recomendada agora é '{p['o'][0][0]}'.")
 
 
+def _visuais_de_args(a):
+    """Monta os grupos visuais a partir de --visual TIPO e --visual-opt TIPO|Rótulo|dado."""
+    grupos = {}
+    for t in a.visual or []:
+        if t not in CH.TITULOS:
+            die(f"tipo visual inválido: {t} (use paleta, layout ou tipografia)")
+        grupos.setdefault(t, [])
+    for vo in a.visual_opt or []:
+        partes = vo.split("|", 2)
+        if len(partes) != 3 or partes[0] not in CH.TITULOS:
+            die("--visual-opt deve ser 'tipo|Rótulo|dado' (paleta: cores #hex separadas por vírgula; layout: hero, painel, grade ou lista; tipografia: família de fonte)")
+        grupos.setdefault(partes[0], []).append({"rotulo": partes[1], "dado": partes[2]})
+    return [{"tipo": t, "titulo": CH.TITULOS[t], "opcoes": ops or CH.opcoes_padrao(t)} for t, ops in grupos.items()]
+
+
+def _refs_de_args(a):
+    refs = []
+    for r in a.ref or []:
+        rot, _, url = r.rpartition("|") if "|" in r else ("", "", r)
+        if not CH._url_ok(url):
+            die(f"link de referência inválido (use http:// ou https://): {url}")
+        refs.append({"rotulo": rot.strip(), "url": url.strip()})
+    return refs
+
+
 def cmd_cliente(a, raiz):
     _, e = carregar(raiz)
     p = next((x for x in e["perguntas"] if x["id"] == a.id), None)
@@ -378,10 +435,21 @@ def cmd_cliente(a, raiz):
         return
     if p.get("resposta"):
         die("pergunta já respondida: não dá para direcionar")
-    p["cliente"] = {"ativa": True, "texto": texto, "opcoes": opcoes, "em": S.agora()}
+    if a.design:
+        p["design"] = True
+    visuais, refs = _visuais_de_args(a), _refs_de_args(a)
+    if p.get("design") and not visuais and not refs and not (p.get("cliente") or {}).get("visuais") and not (p.get("cliente") or {}).get("refs"):
+        die("pergunta de DESIGN: sempre ofereça opções visuais (--visual paleta|layout|tipografia) e/ou links de referência (--ref URL). "
+            "Dica: --visual paleta --visual layout --ref \"Exemplo|https://...\"")
+    ant = p.get("cliente") or {}
+    p["cliente"] = {"ativa": True, "texto": texto, "opcoes": opcoes, "em": S.agora(),
+                    "arquivo": bool(a.arquivo or ant.get("arquivo")), "arquivo_desc": a.arquivo_desc or ant.get("arquivo_desc", ""),
+                    "visuais": visuais or ant.get("visuais", []), "refs": refs or ant.get("refs", [])}
     salvar_entrev(raiz, e)
     sync_decisoes(raiz)
-    print(f"{a.id}: direcionada ao dono do negócio → \"{texto}\"")
+    extras = [x for x, ok in (("upload de arquivo", p["cliente"]["arquivo"]), ("opções visuais", bool(p["cliente"]["visuais"])),
+                              ("links de referência", bool(p["cliente"]["refs"]))) if ok]
+    print(f"{a.id}: direcionada ao dono do negócio → \"{texto}\"" + (f" (+ {', '.join(extras)})" if extras else ""))
 
 
 def _cliente_ativas(e):
@@ -415,7 +483,7 @@ def _registro(e):
 
 
 def _codigo_registro(itens):
-    canon = json.dumps([[i["id"], i["pergunta"], [[r["em"], r.get("opcao", ""), r.get("texto", "")] for r in i["respostas"]]]
+    canon = json.dumps([[i["id"], i["pergunta"], [[r["em"], CH.resumo(r)] for r in i["respostas"]]]
                         for i in itens], ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:12]
 
@@ -440,14 +508,25 @@ def cmd_export_cliente(a, raiz):
         salvar_entrev(raiz, e)
     esc = html_mod.escape
     cards = []
+    avisos = []
     for i, p in enumerate(novas, 1):
         c = p["cliente"]
+        if p.get("design") and not c.get("visuais") and not c.get("refs"):
+            c["visuais"] = [{"tipo": t, "titulo": CH.TITULOS[t], "opcoes": CH.opcoes_padrao(t)} for t in ("paleta", "layout")]
+            avisos.append(p["id"])
         ops = "".join(f'<label class="opt"><input type="radio" name="q_{esc(p["id"])}" value="{esc(o)}"><span>{esc(o)}</span></label>'
                       for o in c.get("opcoes", []))
-        rotulo = "Se preferir, explique com suas palavras" if ops else "Sua resposta"
-        cards.append(f'<section class="card"><div class="n">Pergunta {i} de {len(novas)}</div><p class="q">{esc(c["texto"])}</p>{ops}'
+        extra = CH.render_refs(c.get("refs", [])) + CH.render_visuais(p["id"], c.get("visuais", []))
+        if p.get("design"):
+            extra += CH.render_links_campo(p["id"])
+        arq = CH.render_arquivo(p["id"], c.get("arquivo_desc", "")) if c.get("arquivo") else ""
+        rotulo = "Se preferir, explique com suas palavras" if (ops or c.get("visuais")) else "Sua resposta"
+        cards.append(f'<section class="card"><div class="n">Pergunta {i} de {len(novas)}</div><p class="q">{esc(c["texto"])}</p>{ops}{extra}'
                      f'<label class="t" for="t_{esc(p["id"])}">{rotulo}</label>'
-                     f'<textarea id="t_{esc(p["id"])}" name="t_{esc(p["id"])}"></textarea></section>')
+                     f'<textarea id="t_{esc(p["id"])}" name="t_{esc(p["id"])}"></textarea>{arq}</section>')
+    if avisos:
+        salvar_entrev(raiz, e)
+        print(f"aviso: pergunta(s) de design sem opções visuais ({', '.join(avisos)}): usei paleta e layout padrão. Ajuste com `cliente ID --visual ...`.")
     perguntas_html = ('<h2 class="sec">Novas perguntas</h2>' + "\n".join(cards)) if cards else ""
     registro_html = ""
     if reg:
@@ -462,8 +541,8 @@ def cmd_export_cliente(a, raiz):
             for k, r in enumerate(it["respostas"]):
                 quem = f' · {esc(r["respondente"])}' if r.get("respondente") else ""
                 rot = "Resposta" if k == 0 else "Complemento"
-                texto = " ".join(x for x in [r.get("opcao", ""), r.get("texto", "")] if x)
-                registro_html += (f'<p class="a"><span class="meta">🔒 {rot} · {esc(_fmt(r["em"]))}{quem}</span><br>{esc(texto)}</p>')
+                texto = "<br>".join(esc(x) for x in CH.resumo(r))
+                registro_html += (f'<p class="a"><span class="meta">🔒 {rot} · {esc(_fmt(r["em"]))}{quem}</span><br>{texto}</p>')
             registro_html += "</div>"
         registro_html += f'<p class="cod">Código do registro: <code>{_codigo_registro(reg)}</code></p></section>'
     nome = S.titulo_projeto(md)
@@ -478,7 +557,8 @@ def cmd_export_cliente(a, raiz):
     tpl = S.ler(os.path.join(SKILL, "templates", "cliente.html"))
     pagina = (tpl.replace("__TITULO__", esc(nome)).replace("__INTRO__", esc(intro)).replace("__PROJETO__", esc(nome))
               .replace("__REGISTRO__", registro_html).replace("__PERGUNTAS__", perguntas_html)
-              .replace("__FORM_HIDDEN__", "" if novas else " hidden"))
+              .replace("__FORM_HIDDEN__", "" if novas else " hidden")
+              .replace("__MAXBYTES__", str(int(CH.MARGEM_MB * 1024 * 1024))).replace("__LIMITE__", str(CH.LIMITE_MB)))
     pasta = os.path.join(raiz, ".spec", "cliente")
     os.makedirs(pasta, exist_ok=True)
     S.gravar(os.path.join(pasta, "index.html"), pagina)
@@ -490,6 +570,21 @@ def cmd_export_cliente(a, raiz):
     print(f"{len(novas)} perguntas novas · {len(reg)} respostas registradas (travadas) na página do cliente.")
 
 
+def _arquivo_de(v):
+    """Normaliza o valor de um campo de arquivo do Netlify (objeto com url/nome/tamanho, ou só texto)."""
+    if isinstance(v, list):
+        v = v[0] if v else None
+    if isinstance(v, dict):
+        url = v.get("url") or ""
+        nome = v.get("filename") or v.get("name") or v.get("nome") or (url.rsplit("/", 1)[-1] if url else "")
+        if not (url or nome):
+            return None
+        return {"nome": nome, "url": url, "tamanho": v.get("size") or v.get("tamanho") or 0, "tipo": v.get("type") or v.get("tipo") or ""}
+    if isinstance(v, str) and v.strip():
+        return {"nome": v.strip().rsplit("/", 1)[-1], "url": v.strip() if v.startswith("http") else "", "tamanho": 0, "tipo": ""}
+    return None
+
+
 def cmd_import_cliente(a, raiz):
     """Importa envios do formulário (JSON de `netlify.py submissions`). Só acrescenta: nunca altera o que já foi registrado."""
     md, e = carregar(raiz)
@@ -498,25 +593,100 @@ def cmd_import_cliente(a, raiz):
     for env in sorted(envios, key=lambda x: x["em"]):
         dados = env.get("data", {})
         for p in e["perguntas"]:
-            opcao = (dados.get("q_" + p["id"]) or "").strip()
-            texto = (dados.get("t_" + p["id"]) or "").strip()
-            if not (opcao or texto):
+            pid = p["id"]
+            opcao = (dados.get("q_" + pid) or "").strip() if isinstance(dados.get("q_" + pid), str) else ""
+            texto = (dados.get("t_" + pid) or "").strip() if isinstance(dados.get("t_" + pid), str) else ""
+            links = (dados.get("l_" + pid) or "").strip() if isinstance(dados.get("l_" + pid), str) else ""
+            arquivo = _arquivo_de(dados.get("f_" + pid))
+            grande = str(dados.get("g_" + pid) or "").strip().lower() in ("sim", "on", "true", "1")
+            visuais = []
+            for g in (p.get("cliente") or {}).get("visuais", []):
+                v = dados.get(f"v_{pid}_{g['tipo']}")
+                if isinstance(v, str) and v.strip():
+                    visuais.append(f"{CH.NOMES.get(g['tipo'], g['tipo'])}: {v.strip()}")
+            if not (opcao or texto or links or arquivo or grande or visuais):
                 continue
             lista = p.setdefault("respostas_cliente", [])
             if any(x.get("submissao") == env.get("id") for x in lista):
                 continue
             c = p.get("cliente") or {}
-            lista.append({"pergunta": c.get("texto") or p["q"], "opcoes": c.get("opcoes", []), "opcao": opcao, "texto": texto,
-                          "em": env["em"], "submissao": env.get("id", ""),
-                          "respondente": (dados.get("respondente") or "").strip()})
+            item = {"pergunta": c.get("texto") or p["q"], "opcoes": c.get("opcoes", []), "opcao": opcao, "texto": texto,
+                    "visuais": visuais, "links": links, "arquivo": arquivo, "grande": grande,
+                    "em": env["em"], "submissao": env.get("id", ""), "respondente": (dados.get("respondente") or "").strip()}
+            lista.append(item)
             lista.sort(key=lambda x: x["em"])
             p["resposta_cliente"] = lista[-1]
-            p.setdefault("rodada_cliente", _rodada_de(e, p["id"]) or 1)
+            p.setdefault("rodada_cliente", _rodada_de(e, pid) or 1)
             n += 1
     salvar_entrev(raiz, e)
     sync_decisoes(raiz)
     pend = [p["id"] for p in e["perguntas"] if p.get("respostas_cliente") and not p.get("resposta")]
     print(f"{n} respostas do cliente registradas. A traduzir para decisão técnica: {', '.join(pend) or 'nenhuma'}")
+    if _nao_verificadas(e):
+        print("⚠ OBRIGATÓRIO: verifique o impacto dessas respostas nas decisões já tomadas na lista completa (`impacto`).")
+
+
+def cmd_revisar(a, raiz):
+    _, e = carregar(raiz)
+    p = next((x for x in e["perguntas"] if x["id"] == a.id), None)
+    if not p:
+        die(f"pergunta {a.id} não existe")
+    if not p.get("resposta"):
+        die("só se revisa uma decisão já tomada (esta pergunta ainda não foi respondida)")
+    p["revisao"] = {"aberta": True, "motivo": a.motivo, "origem": a.origem or "", "em": S.agora(), "decisao_anterior": texto_resposta(p)}
+    salvar_entrev(raiz, e)
+    sync_decisoes(raiz)
+    print(f"{a.id}: marcada para REVISAR. Motivo: {a.motivo}. Refaça com `answer {a.id} ...` ou confirme com `revisao-ok {a.id}`.")
+
+
+def cmd_revisao_ok(a, raiz):
+    _, e = carregar(raiz)
+    p = next((x for x in e["perguntas"] if x["id"] == a.id), None)
+    rv = (p or {}).get("revisao")
+    if not rv or not rv.get("aberta"):
+        die(f"{a.id} não tem revisão aberta")
+    rv.update({"aberta": False, "resolvida_em": S.agora(), "resultado": "decisão mantida", "nota": a.nota or ""})
+    salvar_entrev(raiz, e)
+    sync_decisoes(raiz)
+    print(f"{a.id}: decisão mantida após revisão.")
+
+
+def cmd_impacto(a, raiz):
+    """Lista o que revisar: respostas do cliente ainda não verificadas × decisões já tomadas na lista completa."""
+    md, e = carregar(raiz)
+    nv = _nao_verificadas(e)
+    resolvidas = [p for p in visiveis(e) if estado_p(p) in ("respondida", "revisar")]
+    if a.json:
+        print(json.dumps({"respostas_do_cliente": [{"id": i, "pergunta": r["pergunta"], "resumo": CH.resumo(r), "em": r["em"]} for i, r in nv],
+                          "decisoes_tomadas": [{"id": p["id"], "bloco": nome_bloco(e, p["bloco"]), "pergunta": p["q"], "decisao": texto_resposta(p),
+                                                "em_revisao": estado_p(p) == "revisar"} for p in resolvidas]}, ensure_ascii=False, indent=1))
+        return
+    if not nv:
+        print("Nenhuma resposta do cliente pendente de verificação de impacto.")
+        return
+    print("VERIFICAÇÃO DE IMPACTO. Respostas novas do cliente:")
+    for i, r in nv:
+        print(f"  [{i}] {r['pergunta']}\n       → {' · '.join(CH.resumo(r))}")
+    print(f"\nDecisões já tomadas na lista completa ({len(resolvidas)}). Para CADA resposta acima, pergunte: ela contradiz, restringe ou muda alguma destas?")
+    bl = None
+    for p in resolvidas:
+        if p["bloco"] != bl:
+            bl = p["bloco"]
+            print(f"  == {nome_bloco(e, bl)}")
+        print(f"   {p['id']} · {p['q']} → {texto_resposta(p)}{'  [EM REVISÃO]' if estado_p(p) == 'revisar' else ''}")
+    print("\nSe afeta: `revisar ID --motivo \"...\" --origem <ID da pergunta do cliente>`. Ao terminar: `impacto-ok`.")
+
+
+def cmd_impacto_ok(a, raiz):
+    md, e = carregar(raiz)
+    nv = _nao_verificadas(e)
+    for _, r in nv:
+        r["verificada"] = True
+        r["verificada_em"] = S.agora()
+    salvar_entrev(raiz, e)
+    abertas = [p["id"] for p in e["perguntas"] if (p.get("revisao") or {}).get("aberta")]
+    S.gravar(caminhos(raiz)["spec"], S.add_historico(md, f"impacto verificado: {len(nv)} resposta(s) do cliente; revisões abertas: {', '.join(abertas) or 'nenhuma'}"))
+    print(f"{len(nv)} resposta(s) do cliente marcadas como verificadas. Revisões abertas: {', '.join(abertas) or 'nenhuma'}.")
 
 
 def cmd_bypass_all(a, raiz):
@@ -544,6 +714,8 @@ def cmd_add(a, raiz):
          "origem": "escopo"}
     if a.motivo:
         p["motivo"] = a.motivo
+    if getattr(a, "design", False):
+        p["design"] = True
     if a.multi:
         p["multi"] = True
     if not p["o"]:
@@ -594,7 +766,9 @@ def cmd_import(a, raiz):
                 novas += 1
                 continue
             p["cliente"] = {"ativa": True, "texto": d.get("texto", ""), "opcoes": [x for x in d.get("opcoes", []) if x],
-                            "em": d.get("em", S.agora())}
+                            "em": d.get("em", S.agora()), "arquivo": bool(d.get("arquivo")),
+                            "arquivo_desc": (antigo.get("arquivo_desc") or ""), "visuais": antigo.get("visuais", []),
+                            "refs": antigo.get("refs", [])}
             novas += 1
             continue
         if atual and atual.get("em", "") >= d.get("em", ""):
@@ -613,6 +787,7 @@ def cmd_import(a, raiz):
             r = {"tipo": "bypass", "texto": d.get("texto", ""), "em": d.get("em", S.agora())}
         else:
             continue
+        _arquivar(p, "nova resposta (importada)")
         p["resposta"] = r
         novas += 1
     salvar_entrev(raiz, e)
@@ -711,12 +886,15 @@ def erros_de_gate(raiz, atual, destino):
             erros.append("Seção 1 (Objetivo) ainda está vazia: registre o briefing ou a ideia antes de entrevistar.")
     elif atual == "entrevista" and destino == "spec":
         c = contagem(e) if e else {"pendentes": 0, "aguardando": 0}
-        c = dict(c, pendentes=c["pendentes"] + c.get("aguardando", 0))
+        c = dict(c, pendentes=c["pendentes"] + c.get("aguardando", 0) + c.get("revisar", 0))
+        if e and _nao_verificadas(e):
+            erros.append(f"{len(_nao_verificadas(e))} resposta(s) do cliente sem verificação de impacto na lista completa: rode `impacto`, "
+                         "revise o que for afetado e registre com `impacto-ok`.")
         if S.ficha(md).get("varredura_lacunas", "não") != "feita":
             erros.append("Falta a varredura de lacunas: releia briefing e respostas, adicione as perguntas que o escopo "
                          "pede (`add`) e registre com `varredura`.")
         if c["pendentes"]:
-            ids = [p["id"] for p in visiveis(e) if estado_p(p) in ("pendente", "aguardando")]
+            ids = [p["id"] for p in visiveis(e) if estado_p(p) in ("pendente", "aguardando", "revisar")]
             erros.append(f"{c['pendentes']} perguntas pendentes ({', '.join(ids[:8])}{'...' if len(ids) > 8 else ''}). "
                          "Responda ou use bypass (pergunta a pergunta ou em lote).")
     elif atual == "spec" and destino == "features":
@@ -967,6 +1145,12 @@ def main():
     p.add_argument("--texto", help="a pergunta em linguagem de negócio (padrão: a sugestão do banco)")
     p.add_argument("--opt", action="append", help="opção em linguagem de negócio (repita; opcional)")
     p.add_argument("--sugerir", action="store_true", help="só registra a sugestão, sem direcionar")
+    p.add_argument("--arquivo", action="store_true", help="o cliente poderá enviar um arquivo (limite de 8 MB; maior = o desenvolvedor pega)")
+    p.add_argument("--arquivo-desc", help="o que o cliente deve enviar (ex.: 'a planilha de clientes')")
+    p.add_argument("--design", action="store_true", help="pergunta de design: exige opções visuais e/ou links de referência")
+    p.add_argument("--visual", action="append", help="grupo de opções visuais padrão: paleta, layout ou tipografia (repita)")
+    p.add_argument("--visual-opt", action="append", help="opção visual própria: 'tipo|Rótulo|dado' (paleta: #hex,#hex; layout: hero|painel|grade|lista)")
+    p.add_argument("--ref", action="append", help="link de referência para o cliente olhar: URL ou 'Rótulo|URL' (repita)")
     p.add_argument("--remover", action="store_true")
     p.set_defaults(f=cmd_cliente)
     p = sp.add_parser("export-cliente", help="gera .spec/cliente/ (página do dono do negócio, para o Netlify)")
@@ -975,6 +1159,20 @@ def main():
     p = sp.add_parser("import-cliente", help="importa os envios do formulário do cliente")
     p.add_argument("arquivo")
     p.set_defaults(f=cmd_import_cliente)
+    p = sp.add_parser("revisar", help="marca uma decisão já tomada para revisão (afetada por resposta do cliente)")
+    p.add_argument("id")
+    p.add_argument("--motivo", required=True)
+    p.add_argument("--origem", help="ID da pergunta do cliente que motivou")
+    p.set_defaults(f=cmd_revisar)
+    p = sp.add_parser("revisao-ok", help="encerra a revisão mantendo a decisão")
+    p.add_argument("id")
+    p.add_argument("--nota")
+    p.set_defaults(f=cmd_revisao_ok)
+    p = sp.add_parser("impacto", help="checklist: respostas novas do cliente × decisões já tomadas")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(f=cmd_impacto)
+    p = sp.add_parser("impacto-ok", help="registra que o impacto das respostas do cliente foi verificado")
+    p.set_defaults(f=cmd_impacto_ok)
     p = sp.add_parser("bypass-all", help="pula todas as pendentes (ou de um bloco)")
     p.add_argument("--bloco")
     p.add_argument("--motivo")
@@ -988,6 +1186,7 @@ def main():
     p.add_argument("--why")
     p.add_argument("--opt", action="append")
     p.add_argument("--multi", action="store_true")
+    p.add_argument("--design", action="store_true", help="marca como pergunta de design (ao direcionar ao cliente exige opções visuais ou referências)")
     p.add_argument("--motivo", help="o que no briefing ou numa resposta anterior gerou esta pergunta (ex.: 'briefing: marketplace')")
     p.set_defaults(f=cmd_add)
 

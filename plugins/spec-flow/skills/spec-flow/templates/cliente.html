@@ -34,6 +34,18 @@ textarea:focus,input[type=text]:focus{outline:2px solid var(--blue);border-color
 .rc{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--good);border-radius:14px;padding:12px 14px;margin-bottom:10px}
 .rc .q{margin:0 0 6px;font-size:1rem}.rc .a{margin:0 0 6px;white-space:pre-wrap}.rc .meta{font-size:.78rem;color:var(--muted)}
 .cod{font-size:.8rem;color:var(--muted);text-align:right;margin:4px 0 14px}
+.vg{border:0;padding:0;margin:12px 0 4px}.vg legend{font-size:.9rem;color:var(--ink2);margin-bottom:6px;padding:0}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.vc{position:relative;display:block;cursor:pointer}.vc input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.vbox{display:flex;flex-direction:column;gap:6px;height:100%;border:1.5px solid var(--line);border-radius:12px;padding:8px;background:var(--bg);font-size:.85rem}
+.vbox b{font-weight:600}.vc input:checked+.vbox{border-color:var(--blue);background:var(--blue-soft)}.vc input:focus-visible+.vbox{outline:2px solid var(--blue)}
+.sw{display:flex;height:34px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}.sw i{flex:1}
+.wf{width:100%;height:64px;color:var(--ink2)}.ty{font-size:1.1rem;line-height:1.2;min-height:34px;display:block}
+.nota3{font-size:.82rem;color:var(--muted);margin:2px 0 6px}
+.refs{margin:8px 0}.refs .t2{font-size:.88rem;color:var(--ink2);margin:0 0 4px}.refs ul{margin:0;padding-left:20px}.refs a{color:var(--blue)}
+.arq{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)}.arq input[type=file]{width:100%;font-size:.9rem}
+.aviso{font-size:.82rem;color:var(--muted);margin:6px 0 8px}.arq .opt{margin-top:6px}.arqerr{color:#d03b3b;font-size:.85rem;margin:6px 0 0;display:none}
+textarea.lk{min-height:64px}
 .hp{position:absolute;left:-9999px;height:0;overflow:hidden}
 </style>
 </head>
@@ -43,7 +55,7 @@ textarea:focus,input[type=text]:focus{outline:2px solid var(--blue);border-color
 <p class="intro">__INTRO__</p>
 <div class="ok" id="ok"><b>Respostas enviadas. Obrigado!</b><br>Pode fechar esta página. Se quiser complementar, é só abrir o link de novo e enviar mais uma vez.</div>
 __REGISTRO__
-<form id="f" name="entrevista" method="POST" action="/obrigado" data-netlify="true" netlify-honeypot="bot-field"__FORM_HIDDEN__>
+<form id="f" name="entrevista" method="POST" action="/obrigado" enctype="multipart/form-data" data-netlify="true" netlify-honeypot="bot-field"__FORM_HIDDEN__>
 <input type="hidden" name="form-name" value="entrevista">
 <input type="hidden" name="projeto" value="__PROJETO__">
 <p class="hp"><label>Não preencha: <input name="bot-field"></label></p>
@@ -59,15 +71,26 @@ __PERGUNTAS__
 </main>
 <script>
 (function(){
-var f=document.getElementById("f"),k="specflow-cliente:__PROJETO__";
-try{var s=JSON.parse(localStorage.getItem(k)||"{}");Object.keys(s).forEach(function(n){var el=f.elements[n];if(!el)return;
- if(el.length&&el[0]&&el[0].type==="radio"){for(var i=0;i<el.length;i++)if(el[i].value===s[n])el[i].checked=true;}else el.value=s[n];});}catch(x){}
-f.addEventListener("input",function(){try{var o={};new FormData(f).forEach(function(v,n){if(n!=="bot-field"&&n!=="form-name"&&n!=="projeto"&&v)o[n]=v;});localStorage.setItem(k,JSON.stringify(o));}catch(x){}});
+var f=document.getElementById("f"),k="specflow-cliente:__PROJETO__",MAX=__MAXBYTES__;
+function el(n){return f.elements[n];}
+try{var s=JSON.parse(localStorage.getItem(k)||"{}");Object.keys(s).forEach(function(n){var e=el(n);if(!e)return;
+ if(e.length&&e[0]&&e[0].type==="radio"){for(var i=0;i<e.length;i++)if(e[i].value===s[n])e[i].checked=true;}
+ else if(e.type==="checkbox"){e.checked=true;}else if(e.type!=="file"){e.value=s[n];}});}catch(x){}
+f.addEventListener("input",function(){try{var o={};new FormData(f).forEach(function(v,n){if(typeof v==="string"&&n!=="bot-field"&&n!=="form-name"&&n!=="projeto"&&v)o[n]=v;});localStorage.setItem(k,JSON.stringify(o));}catch(x){}});
+function msgArq(inp,t){var p=inp.closest(".arq"),e=p.querySelector(".arqerr");if(!e){e=document.createElement("p");e.className="arqerr";p.appendChild(e);}e.textContent=t;e.style.display=t?"block":"none";}
+Array.prototype.forEach.call(f.querySelectorAll('input[type=file]'),function(inp){
+ inp.addEventListener("change",function(){var fl=inp.files&&inp.files[0];msgArq(inp,"");var g0=el(inp.dataset.g);
+  if(fl&&fl.size<=MAX&&g0&&inp._auto){g0.checked=false;inp._auto=false;}
+  if(fl&&fl.size>MAX){var g=el(inp.dataset.g);if(g){g.checked=true;inp._auto=true;}inp.value="";
+   msgArq(inp,"Este arquivo tem "+(fl.size/1048576).toFixed(1)+" MB, acima do limite de __LIMITE__ MB. Marquei a opção abaixo: o desenvolvedor entrará em contato para pegar o arquivo.");}});});
 f.addEventListener("submit",function(ev){
- ev.preventDefault();var b=document.getElementById("b"),e=document.getElementById("e");e.style.display="none";b.disabled=true;
- fetch("/",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(new FormData(f)).toString()})
+ ev.preventDefault();var b=document.getElementById("b"),e=document.getElementById("e");e.style.display="none";
+ var total=0;Array.prototype.forEach.call(f.querySelectorAll('input[type=file]'),function(i){if(i.files&&i.files[0])total+=i.files[0].size;});
+ if(total>MAX){e.textContent="Os arquivos somam "+(total/1048576).toFixed(1)+" MB e o limite por envio é __LIMITE__ MB. Envie um de cada vez, ou marque \u201cmeu arquivo é maior\u201d e o desenvolvedor entrará em contato.";e.style.display="block";return;}
+ b.disabled=true;
+ fetch("/",{method:"POST",body:new FormData(f)})
  .then(function(r){if(!r.ok)throw 0;f.style.display="none";document.getElementById("ok").style.display="block";window.scrollTo(0,0);try{localStorage.removeItem(k);}catch(x){}})
- .catch(function(){b.disabled=false;e.style.display="block";});
+ .catch(function(){b.disabled=false;e.textContent="Não consegui enviar. Verifique a conexão e tente de novo. Se estiver enviando arquivo e demorar, marque \u201cmeu arquivo é maior\u201d: o desenvolvedor entrará em contato.";e.style.display="block";});
 });
 })();
 </script>

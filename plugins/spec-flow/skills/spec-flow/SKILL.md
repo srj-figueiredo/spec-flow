@@ -22,7 +22,9 @@ Se `${CLAUDE_SKILL_DIR}` aparecer sem substituir, ache o script com `find / -nam
 3. **Não pule fase.** Só avance com `SPEC fase <próxima>` (ele valida). Se faltar algo, mostre a lista exata e resolva ou faça bypass. O usuário pode fazer bypass de uma pergunta, de um bloco ou do questionário todo; isso fica registrado como pendência, nunca some.
 4. **Ações que saem do computador** (deploy, publicar, enviar e-mail, mexer em contas) só com confirmação explícita do usuário.
 5. **Respostas curtas e diretas**, em português do Brasil. Mostre o que mudou e o que falta.
-6. Depois de qualquer mudança relevante rode `SPEC render` e, se o git for usado no projeto, faça commit com o `SPEC.md` e a pasta `docs/`.
+6. **Toda resposta do cliente exige verificação de impacto.** As respostas do dono do negócio podem mudar decisões que já estavam fechadas na lista completa. Depois de `import-cliente`, rode `SPEC impacto`, confira cada resposta nova contra TODAS as decisões já tomadas, marque as afetadas com `SPEC revisar` e só então `SPEC impacto-ok`. A entrevista não fecha com decisão em revisão ou resposta sem verificação (`reference/cliente.md`, seção "Verificação de impacto").
+7. **Perguntas de design ao cliente sempre levam opções visuais e/ou links de referência** (pelo menos um). Arquivos: o formulário aceita upload de até 8 MB por envio; acima disso o desenvolvedor combina a entrega (`reference/cliente.md`, seção "Arquivos e design").
+8. Depois de qualquer mudança relevante rode `SPEC render` e, se o git for usado no projeto, faça commit com o `SPEC.md` e a pasta `docs/`.
 
 ## Ao abrir uma sessão (retomada automática)
 
@@ -139,9 +141,11 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `export-web` | gera `.spec/entrevista.html` (página do celular) |
 | `import-answers arquivo.json` | importa respostas do celular |
 | `sync` | regrava o bloco de decisões do SPEC.md |
-| `cliente ID [--texto ..] [--opt ..] [--sugerir] [--remover]` | direciona a pergunta ao dono do negócio |
+| `cliente ID [--texto ..] [--opt ..] [--arquivo] [--design --visual paleta\|layout\|tipografia --ref URL] [--sugerir] [--remover]` | direciona a pergunta ao dono do negócio (upload, opções visuais e referências) |
 | `export-cliente [--intro ..]` | gera a página do cliente (`.spec/cliente/`) |
 | `import-cliente envios.json` | importa as respostas do cliente (a traduzir) |
+| `impacto [--json]` / `impacto-ok` | checklist de impacto das respostas do cliente sobre decisões já tomadas / registra que foi feito |
+| `revisar ID --motivo ".." --origem ID` / `revisao-ok ID [--nota ..]` | marca decisão afetada para revisão / encerra mantendo |
 | `ficha [chave] [valor]` | lê ou grava campos da Ficha (ex.: `entrevista_web`, `entrevista_slug`, `tasks_paralelas`) |
 | `gate` / `fase DESTINO [--forcar]` | valida e muda de fase |
 | `check` | valida o SPEC.md (ids, dependências, ciclos, arquivos em disputa) |

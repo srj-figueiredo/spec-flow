@@ -1,5 +1,5 @@
 {
- "versao": 2,
+ "versao": 3,
  "blocos": [
   {
    "id": "negocio",
@@ -407,7 +407,8 @@
      "Não tenho nada ainda"
     ],
     "sugerida": true
-   }
+   },
+   "design": true
   },
   {
    "id": "U-07",
