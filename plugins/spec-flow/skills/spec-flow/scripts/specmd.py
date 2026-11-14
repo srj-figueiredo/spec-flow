@@ -273,6 +273,92 @@ def set_campo_teste(md, tid, campo, valor):
     return md[:pos[0]] + bloco + md[pos[1]:]
 
 
+# ---------- deploy (seção 8) ----------
+CK_RE = re.compile(r"^- \[([ ~x!])\] (CK-\d+) · (.*)$")
+CK_MARCAS = {" ": "pendente", "~": "andamento", "x": "feito", "!": "bloqueado"}
+CK_MARCA_DE = {v: k for k, v in CK_MARCAS.items()}
+PUB_RE = re.compile(r"^- (\d{4}-\d{2}-\d{2}) · (\S+) · (ok|falhou|revertido)(?: · (.*))?$")
+
+
+def deploy(md):
+    """Seção 8: ficha de publicação (chave: valor), checklist (CK-xxx) e histórico de publicações."""
+    info, itens, pubs = {}, [], []
+    modo, atual = "info", None
+    for linha in corpo(md, 8).splitlines():
+        if linha.startswith("### "):
+            t = linha[4:].strip().lower()
+            modo = "check" if t.startswith("checklist") else "pub" if t.startswith("publica") else "info"
+            continue
+        if modo == "check":
+            m = CK_RE.match(linha)
+            if m:
+                atual = {"id": m.group(2), "titulo": m.group(3).strip(), "marca": m.group(1), "estado": CK_MARCAS[m.group(1)], "nota": "", "evidencia": ""}
+                itens.append(atual)
+                continue
+            mf = re.match(r"^  - ([\w_]+):\s*(.*)$", linha)
+            if mf and atual is not None:
+                atual[mf.group(1)] = mf.group(2).strip()
+        elif modo == "pub":
+            m = PUB_RE.match(linha.strip())
+            if m:
+                extras = dict(re.findall(r"(\w+)=(\S+)", m.group(4) or ""))
+                pubs.append({"data": m.group(1), "ambiente": m.group(2), "resultado": m.group(3), "url": extras.get("url", ""),
+                             "commit": extras.get("commit", ""), "nota": re.sub(r"\w+=\S+", "", m.group(4) or "").strip(" ·")})
+        else:
+            m = re.match(r"^- ([\w_]+):\s*(.*)$", linha)
+            if m:
+                info[m.group(1)] = m.group(2).strip()
+    return {"info": info, "checklist": itens, "publicacoes": pubs}
+
+
+def set_marca_checklist(md, cid, estado, evidencia=None):
+    if estado not in CK_MARCA_DE:
+        raise ValueError(f"estado inválido: {estado}. Use: {', '.join(CK_MARCA_DE)}")
+    m = re.search(rf"^(- \[)[ ~x!](\] {re.escape(cid)} · .*)$", mascara(md), re.M)
+    if not m:
+        raise KeyError(f"item {cid} não encontrado")
+    pos = m.start() + len(m.group(1))
+    md = md[:pos] + CK_MARCA_DE[estado] + md[pos + 1:]
+    if evidencia:
+        fim_linha = md.find("\n", pos)
+        resto = md[fim_linha + 1:]
+        # substitui/insere a linha de evidência logo abaixo do item
+        mm = re.match(r"((?:  - [\w_]+:.*\n)*)", resto)
+        bloco = mm.group(1)
+        if re.search(r"^  - evidencia:", bloco, re.M):
+            novo_bloco = re.sub(r"^  - evidencia:.*$", f"  - evidencia: {evidencia}", bloco, count=1, flags=re.M)
+        else:
+            novo_bloco = bloco + f"  - evidencia: {evidencia}\n"
+        md = md[:fim_linha + 1] + novo_bloco + resto[len(bloco):]
+    return md
+
+
+def set_info_deploy(md, chave, valor):
+    for s_ in secoes(md):
+        if s_["num"] == 8:
+            sub = md[s_["ini"]:s_["fim"]]
+            corte = re.search(r"^### ", sub, re.M)
+            topo = sub[:corte.start()] if corte else sub
+            resto = sub[corte.start():] if corte else ""
+            if re.search(rf"^- {re.escape(chave)}:", topo, re.M):
+                topo = re.sub(rf"^(- {re.escape(chave)}:).*$", lambda m: f"{m.group(1)} {valor}", topo, count=1, flags=re.M)
+            else:
+                topo = topo.rstrip("\n") + f"\n- {chave}: {valor}\n\n"
+            return md[:s_["ini"]] + topo + resto + md[s_["fim"]:]
+    raise KeyError("seção 8 (Deploy) não existe: rode `migrar`")
+
+
+def add_publicacao(md, linha):
+    for s_ in secoes(md):
+        if s_["num"] == 8:
+            sub = md[s_["ini"]:s_["fim"]].rstrip("\n")
+            if not re.search(r"^### Publica", sub, re.M):
+                sub += "\n\n### Publicações\n"
+            sub = re.sub(r"\n\(nenhuma publicação ainda\)\s*$", "", sub)
+            return md[:s_["ini"]] + sub + f"\n{linha}\n\n" + md[s_["fim"]:]
+    raise KeyError("seção 8 (Deploy) não existe: rode `migrar`")
+
+
 # ---------- change requests e histórico ----------
 CR_RE = re.compile(r"^### (CR-\d+) · (.*)$")
 
@@ -280,7 +366,7 @@ CR_RE = re.compile(r"^### (CR-\d+) · (.*)$")
 def change_requests(md):
     out = []
     atual = None
-    for linha in corpo(md, 8).splitlines():
+    for linha in corpo(md, 9).splitlines():
         m = CR_RE.match(linha)
         if m:
             atual = {"id": m.group(1), "titulo": m.group(2).strip(), "estado": "aberta", "features": [], "motivo": "",
@@ -298,7 +384,7 @@ def change_requests(md):
 
 def historico(md):
     out = []
-    for linha in corpo(md, 9).splitlines():
+    for linha in corpo(md, 10).splitlines():
         m = re.match(r"^- (\d{4}-\d{2}-\d{2}) · (.*)$", linha)
         if m:
             out.append({"data": m.group(1), "texto": m.group(2).strip()})
@@ -307,11 +393,11 @@ def historico(md):
 
 def add_historico(md, texto):
     for s in secoes(md):
-        if s["num"] == 9:
+        if s["num"] == 10:
             corpo8 = md[s["ini"]:s["fim"]].rstrip("\n")
             corpo8 = re.sub(rf"\n?{re.escape(PLACEHOLDER)}\s*$", "", corpo8).rstrip("\n")
             return md[:s["ini"]] + corpo8 + f"\n- {hoje()} · {texto}\n"
-    return md.rstrip("\n") + f"\n\n## 9. Histórico\n\n- {hoje()} · {texto}\n"
+    return md.rstrip("\n") + f"\n\n## 10. Histórico\n\n- {hoje()} · {texto}\n"
 
 
 _DEF = {

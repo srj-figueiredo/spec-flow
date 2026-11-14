@@ -7,7 +7,7 @@ Autenticação:
 
 Comandos:
   site-ensure NOME [--aleatorio] [--ficha PASTA]   cria o site (com --aleatorio, sempre novo e com sufixo impossível de adivinhar); imprime JSON {id, name, url}
-  deploy SITE_ID PASTA        publica a pasta (zip) e espera ficar no ar; imprime JSON {deploy_id, state, url}
+  deploy SITE_ID PASTA [--ficha .]   publica a pasta (zip) e espera ficar no ar; imprime JSON {deploy_id, state, url}
   forms SITE_ID               lista os formulários detectados no site
   submissions SITE_ID [--form NOME]   envios do formulário, normalizados, mais antigos primeiro (JSON)
   delete-site SITE_ID         apaga o site (use só em pilotos)
@@ -68,6 +68,19 @@ def die(msg):
     sys.exit(1)
 
 
+def gravar_ficha_campo(pasta, chave, valor):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import specmd
+    d = os.path.abspath(pasta)
+    while not os.path.isfile(os.path.join(d, "SPEC.md")):
+        pai = os.path.dirname(d)
+        if pai == d:
+            die(f"SPEC.md não encontrado a partir de {pasta}")
+        d = pai
+    caminho = os.path.join(d, "SPEC.md")
+    specmd.gravar(caminho, specmd.set_ficha(specmd.ler(caminho), chave, valor))
+
+
 def gravar_ficha(pasta, site_id, url):
     """Registra o site do cliente na Ficha do SPEC.md do projeto (a retomada automática depende disso)."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -124,6 +137,8 @@ def cmd_deploy(a):
         time.sleep(3)
     if d["state"] != "ready":
         die(f"deploy terminou em '{d['state']}': {d.get('error_message') or ''}")
+    if a.ficha:
+        gravar_ficha_campo(a.ficha, "cliente_publicada_em", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     print(json.dumps({"deploy_id": did, "state": d["state"], "url": d.get("ssl_url") or d.get("url")}))
 
 
@@ -160,7 +175,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
     p = sp.add_parser("site-ensure"); p.add_argument("nome"); p.add_argument("--aleatorio", action="store_true", help="acrescenta sufixo aleatório (link privado)"); p.add_argument("--ficha", metavar="PASTA", help="grava cliente_site_id e cliente_url na Ficha do SPEC.md do projeto"); p.set_defaults(f=cmd_site_ensure)
-    p = sp.add_parser("deploy"); p.add_argument("site_id"); p.add_argument("pasta"); p.set_defaults(f=cmd_deploy)
+    p = sp.add_parser("deploy"); p.add_argument("site_id"); p.add_argument("pasta"); p.add_argument("--ficha", metavar="PASTA", help="grava cliente_publicada_em na Ficha do projeto"); p.set_defaults(f=cmd_deploy)
     p = sp.add_parser("forms"); p.add_argument("site_id"); p.set_defaults(f=cmd_forms)
     p = sp.add_parser("submissions"); p.add_argument("site_id"); p.add_argument("--form"); p.set_defaults(f=cmd_submissions)
     p = sp.add_parser("delete-site"); p.add_argument("site_id"); p.set_defaults(f=cmd_delete_site)

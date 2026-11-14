@@ -89,14 +89,14 @@ Quando o cliente responde: *"retomar"* (ou *"o cliente respondeu"*). O Claude l�
 | **Tasks** | Cada feature aprovada vira tasks que um agente independente consegue executar (arquivos, dependências, aceite, teste). Pergunta uma vez se quer **tasks em paralelo** (padrão: não) | *"quebra em tasks"* |
 | **Construção** | Sequencial (uma por vez) ou **paralelo** (subagentes em worktrees próprios, sem editar o SPEC). Os testes marcados "durante a construção" rodam aqui, sozinhos | *"constrói a próxima task"* / *"constrói em paralelo"* |
 | **Testes** | O plano de testes (seção 7) nasce junto com as tasks. **Cada teste vai para o momento em que faz sentido**: durante a construção, antes do deploy ou só depois dele. O Claude roda sozinho tudo o que dá, guarda **evidência** em `docs/evidencias/` e só pede você para o que depende de uma pessoa (aceite). Falhou: não avança, corrige e roda de novo | *"roda os testes"* |
-| **Deploy** | Checklist a partir das decisões (ambiente, segredos, domínio, banco, backup, monitoramento, rollback). Confirma antes de cada ação externa. **Logo depois de publicar, roda sozinho os testes pós-deploy** | *"vamos ao deploy"* |
+| **Deploy** | Checklist de 9 itens montado das decisões da entrevista (ambiente, segredos, domínio, banco, backup, monitoramento, rollback, contas). Cada item guarda evidência, cada publicação fica registrada, e só se entra na Manutenção com tudo feito e produção no ar. Confirma antes de cada ação externa. **Logo depois de publicar, roda sozinho os testes pós-deploy** | *"vamos ao deploy"* |
 | **Manutenção** | **Change request**: mini-entrevista só dos blocos afetados, features marcadas como alteradas, novas tasks **e testes (com regressão)**, tudo no histórico | *"quero uma mudança: ..."* |
 
 Estados da feature: `proposta → aprovada → em-andamento → em-teste → entregue → alterada` (e `descartada`). Marcas da task: pendente, andamento, feita, bloqueada.
 
 ## 7. Painel e documento
 
-- `docs/painel.html`, com **uma aba por etapa**: *Visão geral* (fase, KPIs, entrevista por bloco, entregas e **pendências**), *Entrevista* (cada decisão com origem, resposta do cliente, decisões anteriores e perguntas descartadas), *Features* (critérios de aceite), *Tasks*, *Testes* (plano por momento, modo, estado e evidência) e *Histórico* (links e registro completo). Funciona no celular e no escuro.
+- `docs/painel.html`, com **uma aba por etapa**: *Visão geral* (fase, KPIs, entrevista por bloco, entregas e **pendências**), *Entrevista* (cada decisão com origem, resposta do cliente, decisões anteriores e perguntas descartadas), *Cliente* (página do cliente, o que aguarda resposta, respostas travadas com código e se o impacto foi verificado), *Features* (critérios de aceite), *Tasks*, *Testes* (plano por momento, modo, estado e evidência), *Deploy* (onde está no ar, checklist com evidências, publicações e testes pós-deploy) e *Histórico* (links e registro completo). Funciona no celular e no escuro.
 - `docs/spec.html`: o `SPEC.md` formatado para leitura.
 - Pedir: *"painel"*. Para ver no celular, o Claude publica como página privada.
 
@@ -128,7 +128,8 @@ O `CLAUDE.md` do projeto manda toda sessão nova invocar a skill. Ela mostra a f
 | `ready [--json]` / `set-feature` / `set-task` | construção |
 | `testes [--quando Q]` / `set-teste ID estado --evidencia ..` | plano de testes por momento / resultado com evidência |
 | `cr-new` / `cr-set` / `hist` / `new-id` / `ficha` / `sync` / `render` | mudanças, histórico, utilitários |
-| `netlify.py site-ensure [--aleatorio] [--ficha .]`, `deploy`, `forms`, `submissions`, `delete-site` | publicação do link do cliente |
+| `deploy-init`, `set-deploy`, `deploy-info`, `deploy-registrar`, `migrar` | checklist e registro de publicações (seção 8); `migrar` atualiza SPEC.md antigo |
+| `netlify.py site-ensure [--aleatorio] [--ficha .]`, `deploy [--ficha .]`, `forms`, `submissions`, `delete-site` | publicação do link do cliente |
 
 ## 10. Limites conhecidos
 

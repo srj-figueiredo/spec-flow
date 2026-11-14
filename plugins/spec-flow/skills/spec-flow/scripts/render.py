@@ -72,7 +72,12 @@ footer{color:var(--muted);font-size:.8rem;margin-top:22px;text-align:center}
 .chip.ts-passou{background:var(--good);border-color:var(--good);color:#fff}.chip.ts-falhou{background:var(--crit);border-color:var(--crit);color:#fff}
 .chip.ts-bloqueado{border-color:var(--crit);color:var(--crit)}.chip.ts-em-execucao{background:var(--blue);border-color:var(--blue);color:#fff}
 .chip.ts-n-a{color:var(--muted)}.chip.cok{border-color:var(--blue);color:var(--blue)}.chip.cwt{border-color:#6250d6;color:#6250d6}.chip.cby{border-color:var(--warn);color:var(--ink)}.chip.crv{border-color:var(--serious);color:var(--ink)}
-.dec{font-size:.88rem;color:var(--ink2)}.hs{font-size:.8rem;color:var(--muted);margin:4px 0 0}
+.dec{font-size:.88rem;color:var(--ink2)}
+.dl{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;margin:8px 0 0;font-size:.92rem}.dl dt{color:var(--muted)}.dl dd{margin:0;overflow-wrap:anywhere}
+.big{font-size:1.15rem;font-weight:650;overflow-wrap:anywhere}.aviso2{background:#fff4d6;border:1px solid var(--warn);border-radius:12px;padding:10px 12px;margin:10px 0;font-size:.92rem}
+@media (prefers-color-scheme:dark){.aviso2{background:#3a3016}}
+.chip.ck-feito{background:var(--good);border-color:var(--good);color:#fff}.chip.ck-andamento{background:var(--blue);border-color:var(--blue);color:#fff}.chip.ck-bloqueado{background:var(--crit);border-color:var(--crit);color:#fff}
+@media(max-width:560px){.dl{grid-template-columns:1fr}.dl dt{margin-top:6px}}.hs{font-size:.8rem;color:var(--muted);margin:4px 0 0}
 .grupo{margin:14px 0 4px;font-weight:650;font-size:.95rem}
 .fdet{border-top:1px solid var(--line);padding:10px 0}.fdet h3{margin:0 0 4px;font-size:1rem}.fdet ul{margin:4px 0 0;padding-left:20px;font-size:.9rem}
 """
@@ -225,6 +230,19 @@ def _tab_testes(tst, feats):
     return h + "</div>"
 
 
+def _n_espera(e):
+    if not e:
+        return ""
+    import spec as C
+    n = sum(1 for p in C.visiveis(e) if C.vai_ao_cliente(p) and not p.get("respostas_cliente"))
+    return f"{n} aguardando" if n else ""
+
+
+def _n_deploy(md):
+    ck = S.deploy(md)["checklist"]
+    return f'{sum(1 for i in ck if i["estado"] == "feito")}/{len(ck)}' if ck else ""
+
+
 def _tab_historico(md, hist, crs, f):
     h = '<div class="card"><h2>Links e endereços</h2><ul class="pend">'
     achou = False
@@ -244,13 +262,175 @@ def _tab_historico(md, hist, crs, f):
     return h + "</div>"
 
 
+def _link_evidencia(evp):
+    if evp.startswith("docs/") and not evp.startswith("docs/../"):
+        return f'<a href="{esc(evp[5:])}"><code>{esc(evp)}</code></a>'
+    if evp.startswith(("http://", "https://")):
+        return f'<a href="{esc(evp)}">{esc(evp)}</a>'
+    return f"<code>{esc(evp)}</code>" if evp else "—"
+
+
+DEPLOY_IDS = ("DP-01", "DP-02", "DP-03", "DP-04", "DP-05", "S-02", "A-03", "A-05", "SG-03", "D-03", "D-05")
+
+
+def _tab_deploy(md, e, tst, f):
+    dp = S.deploy(md)
+    info, itens, pubs = dp["info"], dp["checklist"], dp["publicacoes"]
+    fase = f.get("fase", "entrada")
+    chegou = S.FASES.index(fase) >= S.FASES.index("deploy") if fase in S.FASES else False
+    h = '<div class="card"><h2>Onde está no ar</h2>'
+    url = info.get("url", "")
+    if url and url.startswith("http"):
+        h += f'<div class="big"><a href="{esc(url)}">{esc(url)}</a></div>'
+    else:
+        h += '<div class="vazio">Ainda não publicado em produção.</div>'
+    ult = pubs[-1] if pubs else None
+    if ult:
+        cor = {"ok": "ck-feito", "falhou": "ck-bloqueado", "revertido": "ts-n-a"}[ult["resultado"]]
+        h += (f'<p class="sub">Última publicação: {esc(ult["data"])} · {esc(ult["ambiente"])} · <span class="chip {cor}">{esc(ult["resultado"])}</span>'
+              f'{" · commit " + esc(ult["commit"]) if ult["commit"] else ""}{" · " + esc(ult["nota"]) if ult["nota"] else ""}</p>')
+    rot = (("ambiente", "Ambiente"), ("dominio", "Domínio e DNS"), ("como_publicar", "Como publicar de novo"), ("como_reverter", "Como reverter"), ("monitoramento", "Monitoramento"))
+    linhas = [(r, info[k]) for k, r in rot if info.get(k)]
+    if linhas:
+        h += '<dl class="dl">' + "".join(f"<dt>{esc(r)}</dt><dd>{esc(v)}</dd>" for r, v in linhas) + "</dl>"
+    elif not chegou:
+        h += '<p class="sub">Estes dados são preenchidos ao entrar na fase de Deploy (`deploy-init`), a partir das decisões da entrevista.</p>'
+    h += "</div>"
+    # checklist
+    h += '<div class="card"><h2>Checklist de deploy</h2>'
+    if itens:
+        feitos = sum(1 for i in itens if i["estado"] == "feito")
+        h += f'<div class="sub">{feitos} de {len(itens)} itens concluídos</div>{barra([("done" if feitos == len(itens) else "run", pct(feitos, len(itens)))])}'
+        h += '<div class="tabela"><table><tr><th>Item</th><th>Estado</th><th>Decisão / nota</th></tr>'
+        for i in itens:
+            ev = f'<div class="hs">Evidência: {_link_evidencia(i["evidencia"])}</div>' if i["evidencia"] else ""
+            h += (f'<tr><td><b>{esc(i["id"])}</b> {esc(i["titulo"])}</td><td><span class="chip ck-{i["estado"]}">{esc(i["estado"])}</span></td>'
+                  f'<td class="dec">{esc(i["nota"] or "—")}{ev}</td></tr>')
+        h += "</table></div>"
+    else:
+        h += '<div class="vazio">Checklist ainda não criado: ele é montado ao entrar na fase de Deploy.</div>'
+    h += "</div>"
+    # publicações
+    h += '<div class="card"><h2>Publicações</h2>'
+    if pubs:
+        h += '<div class="tabela"><table><tr><th>Data</th><th>Ambiente</th><th>Resultado</th><th>Endereço</th><th>Commit</th><th>Nota</th></tr>'
+        for x in reversed(pubs):
+            cor = {"ok": "ck-feito", "falhou": "ck-bloqueado", "revertido": "ts-n-a"}[x["resultado"]]
+            link = f'<a href="{esc(x["url"])}">{esc(x["url"])}</a>' if x["url"].startswith("http") else "—"
+            h += (f'<tr><td>{esc(x["data"])}</td><td>{esc(x["ambiente"])}</td><td><span class="chip {cor}">{esc(x["resultado"])}</span></td>'
+                  f'<td>{link}</td><td><code>{esc(x["commit"] or "—")}</code></td><td class="dec">{esc(x["nota"] or "—")}</td></tr>')
+        h += "</table></div>"
+    else:
+        h += '<div class="vazio">Nenhuma publicação registrada ainda.</div>'
+    h += "</div>"
+    # testes pós-deploy
+    pos = [t for t in tst if t["quando"] == "pos-deploy"]
+    h += '<div class="card"><h2>Testes depois do deploy</h2>'
+    if pos:
+        h += '<div class="tabela"><table><tr><th>Teste</th><th>Modo</th><th>Estado</th><th>Evidência</th></tr>'
+        for t in pos:
+            h += (f'<tr><td><b>{esc(t["id"])}</b> {esc(t["titulo"])}<div class="hs">{esc(t["criterio"])}</div></td><td>{"🤖 autônomo" if t["modo"] == "autonomo" else "🧑 manual"}</td>'
+                  f'<td><span class="chip ts-{t["estado"]}">{esc(S.TESTE_NOME.get(t["estado"], t["estado"]))}</span></td><td>{_link_evidencia(t["evidencia"])}</td></tr>')
+        h += "</table></div>"
+    else:
+        h += '<div class="vazio">Nenhum teste marcado para depois do deploy.</div>'
+    h += "</div>"
+    # decisões que guiam o deploy
+    if e:
+        por_id = {p["id"]: p for p in e["perguntas"]}
+        import spec as C
+        linhas = [(i, por_id[i]) for i in DEPLOY_IDS if i in por_id and not por_id[i].get("descartada")]
+        if linhas:
+            h += '<div class="card"><h2>Decisões da entrevista que guiam o deploy</h2><div class="tabela"><table><tr><th>ID</th><th>Pergunta</th><th>Decisão</th></tr>'
+            for i, p in linhas:
+                k = C.estado_p(p)
+                dec = esc(C.texto_resposta(p)) if p.get("resposta") and p["resposta"]["tipo"] != "bypass" else f'<span class="mut">{esc(k)}</span>'
+                h += f'<tr><td>{esc(i)}</td><td>{esc(p["q"])}</td><td class="dec">{dec}</td></tr>'
+            h += "</table></div></div>"
+    return h
+
+
+def _tab_cliente(md, e, f):
+    if not e:
+        return '<div class="card"><div class="vazio">Sem entrevista.</div></div>'
+    import spec as C
+    pc = C.estado_pagina_cliente(md, e)
+    perguntas = e["perguntas"]
+    h = '<div class="card"><h2>Página do cliente</h2>'
+    if pc["url"].startswith("http"):
+        h += f'<div class="big"><a href="{esc(pc["url"])}">{esc(pc["url"])}</a></div>'
+    if not pc["gerada_em"]:
+        h += '<p class="sub"><span class="chip">ainda não criada</span> Ela é gerada a partir das perguntas marcadas para o dono do negócio (`export-cliente`).</p>'
+    else:
+        est = '<span class="chip ck-feito">publicada</span>' if pc["publicada"] else '<span class="chip cby">gerada, ainda não publicada</span>'
+        h += f'<p class="sub">{est} · gerada em {esc(pc["gerada_em"][:16].replace("T", " "))}' + (f' · publicada em {esc(pc["publicada_em"][:16].replace("T", " "))}' if pc["publicada_em"] else "") + "</p>"
+        if pc["faltam"] or pc["sobram"]:
+            h += '<div class="aviso2">⚠ <b>A página está desatualizada.</b> '
+            if pc["faltam"]:
+                h += f'Marcadas e ainda fora da página: {esc(", ".join(pc["faltam"]))}. '
+            if pc["sobram"]:
+                h += f'Na página, mas já desmarcadas: {esc(", ".join(pc["sobram"]))}. '
+            h += "Peça ao Claude para atualizar a página do cliente (mesmo endereço).</div>"
+    h += '<p class="sub">Privada por endereço (sem senha): só quem tem o link acessa. As respostas dele ficam travadas depois de enviadas.</p></div>'
+    # aguardando
+    espera = [p for p in visiveis_(e, C) if C.vai_ao_cliente(p) and not p.get("respostas_cliente")]
+    h += f'<div class="card"><h2>Aguardando o dono do negócio ({len(espera)})</h2>'
+    if espera:
+        h += '<div class="tabela"><table><tr><th>ID</th><th>Pergunta que ele vê</th><th>Origem</th><th>Sua resposta provisória</th></tr>'
+        for p in espera:
+            c = C.cliente_efetivo(p)
+            origem = '<span class="chip cwt">📌 sugerida por mim</span>' if p.get("cliente") is None else '<span class="chip">escolhida por você</span>'
+            minha = esc(C.texto_resposta(p)) if p.get("resposta") and p["resposta"]["tipo"] != "bypass" else "—"
+            h += f'<tr><td>{esc(p["id"])}</td><td>{esc(c.get("texto", ""))}</td><td>{origem}</td><td class="dec">{minha}</td></tr>'
+        h += "</table></div>"
+    else:
+        h += '<div class="vazio">Nenhuma pergunta aguardando o cliente.</div>'
+    h += "</div>"
+    # respostas recebidas
+    reg = C._registro(e)
+    h += f'<div class="card"><h2>Respostas recebidas ({len(reg)})</h2>'
+    if reg:
+        por_id = {p["id"]: p for p in perguntas}
+        rod = None
+        for it in reg:
+            if it["rodada"] != rod:
+                rod = it["rodada"]
+                h += f'<div class="grupo">Rodada {rod}</div>'
+            p = por_id[it["id"]]
+            traduzida = bool(p.get("resposta"))
+            ver = all(r.get("verificada") for r in it["respostas"])
+            chips = ('<span class="chip ck-feito">traduzida</span>' if traduzida else '<span class="chip cby">a traduzir</span>') + \
+                    (' <span class="chip ck-feito">impacto verificado</span>' if ver else ' <span class="chip cby">impacto a verificar</span>')
+            h += f'<div class="fdet"><h3>{esc(it["id"])} · {esc(it["pergunta"])}</h3><div class="sub">{chips}</div>'
+            for k, r in enumerate(it["respostas"]):
+                quem = f" · {esc(r['respondente'])}" if r.get("respondente") else ""
+                h += f'<div class="hs">🔒 {"Resposta" if k == 0 else "Complemento"} · {esc(r["em"][:10])}{quem}</div><div class="dec">{"<br>".join(esc(x) for x in CH.resumo(r))}</div>'
+            if traduzida:
+                h += f'<div class="hs">Sua decisão: {esc(C.texto_resposta(p))}</div>'
+            h += "</div>"
+        h += f'<p class="cod">Código do registro: <code>{C._codigo_registro(reg)}</code></p>'
+    else:
+        h += '<div class="vazio">O cliente ainda não respondeu.</div>'
+    h += "</div>"
+    disp = [p for p in perguntas if p.get("selecao_cliente") == "dispensada" and not C.vai_ao_cliente(p)]
+    if disp:
+        h += f'<div class="card"><h2>Dispensadas por você ({len(disp)})</h2><p class="sub">Sugestões do Claude que você tirou da lista do cliente. Ele não as remarca.</p><div class="dec">{esc(", ".join(p["id"] for p in disp))}</div></div>'
+    return h
+
+
+def visiveis_(e, C):
+    return C.visiveis(e)
+
+
 def _abas(md, e, ent, feats, tasks, tst, hist, crs, f, visao, tab_features, tab_tasks):
     corpos = [("visao", "Visão geral", "", visao),
               ("entrevista", "Entrevista", f'{ent[2]["respondidas"]}/{ent[2]["total"]}' if ent else "", _tab_entrevista(e, ent) if ent else '<div class="card"><div class="vazio">Sem entrevista.</div></div>'),
+              ("cliente", "Cliente", _n_espera(e), _tab_cliente(md, e, f)),
               ("features", "Features", str(len(feats)) if feats else "", _tab_features(feats, tab_features)),
               ("tasks", "Tasks", f'{sum(1 for t in tasks if t["estado"] == "feita")}/{len(tasks)}' if tasks else "",
                tab_tasks or '<div class="card"><div class="vazio">Ainda não há tasks.</div></div>'),
               ("testes", "Testes", f'{sum(1 for t in tst if t["estado"] == "passou")}/{sum(1 for t in tst if t["estado"] != "n-a")}' if tst else "", _tab_testes(tst, feats)),
+              ("deploy", "Deploy", _n_deploy(md), _tab_deploy(md, e, tst, f)),
               ("historico", "Histórico", "", _tab_historico(md, hist, crs, f))]
     nav = '<nav class="tabs" role="tablist">' + "".join(
         f'<button type="button" data-t="{k}"{" class=on" if i == 0 else ""}>{esc(r)}' + (f'<span class="n">{esc(n)}</span>' if n else "") + "</button>"
@@ -329,6 +509,23 @@ def render_painel(raiz, md, e):
             pend.append(("■", "c", f"Teste bloqueado · {t['id']} · {t['titulo']}"))
         elif t["modo"] == "manual" and t["estado"] in ("pendente", "em-execucao") and idx >= S.FASES.index("testes"):
             pend.append(("🧑", "w", f"Teste manual aguardando você · {t['id']} · {t['titulo']}"))
+    dpl = S.deploy(md)
+    if idx >= S.FASES.index("deploy"):
+        abertos = [i for i in dpl["checklist"] if i["estado"] != "feito"]
+        for i in abertos:
+            if i["estado"] == "bloqueado":
+                pend.append(("■", "c", f"Deploy bloqueado · {i['id']} · {i['titulo']}"))
+        if dpl["checklist"] and abertos:
+            pend.append(("☐", "w", f"Checklist de deploy: {len(abertos)} de {len(dpl['checklist'])} itens abertos"))
+        if not dpl["checklist"]:
+            pend.append(("☐", "w", "Checklist de deploy ainda não criado (deploy-init)"))
+    if e:
+        import spec as C2
+        pc = C2.estado_pagina_cliente(md, e)
+        if pc["gerada_em"] and pc["desatualizada"]:
+            pend.append(("⟳", "w", "A página do cliente está desatualizada: peça para atualizar (mesmo endereço)"))
+        elif pc["a_publicar"]:
+            pend.append(("⟳", "w", "A página do cliente foi gerada, mas ainda não está publicada: o cliente não consegue ver"))
     for x in feats:
         if x["estado"] == "em-teste":
             pend.append(("⚑", "w", f"Aguardando seu aceite · {x['id']} · {x['titulo']}"))

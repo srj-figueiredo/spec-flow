@@ -89,10 +89,37 @@ Formato de cada teste (os campos com "- " no início da linha são lidos pelo sc
 Estados: pendente, em-execucao, passou, falhou, bloqueado, n-a (não se aplica, com motivo).
 -->
 
-## 8. Change requests
+## 8. Deploy
+
+Onde o sistema está no ar, como publicar de novo, como reverter e o checklist da publicação. Preenchido na fase de Deploy a partir das decisões da entrevista (`deploy-init` monta o esqueleto).
+
+<!--
+Formato (linhas com "- " no início são lidas pelo script):
+
+- url: https://...                (endereço de produção)
+- ambiente: producao
+- como_publicar: passo a passo curto
+- como_reverter: passo a passo curto
+- monitoramento: o que avisa quando cai
+- dominio: onde o domínio e o DNS estão
+
+### Checklist
+- [ ] CK-001 · Segredos e variáveis configurados no provedor
+  - nota: o que decidimos / onde
+  - evidencia: docs/evidencias/arquivo
+
+Marcas: [ ] pendente, [~] em andamento, [x] feito, [!] bloqueado.
+
+### Publicações
+- 2026-11-14 · producao · ok · url=https://... commit=abc1234 nota livre
+-->
+
+(nenhuma publicação ainda)
+
+## 9. Change requests
 
 Mudanças pedidas depois da primeira entrega. Formato: `### CR-001 · título`, com `estado`, `features`, `motivo`.
 
-## 9. Histórico
+## 10. Histórico
 
 - {{DATA}} · projeto criado com a spec-flow

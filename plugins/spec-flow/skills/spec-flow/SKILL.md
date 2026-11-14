@@ -121,10 +121,14 @@ Seja o mais **autônomo** possível. Procedimento e regras em `reference/testes.
 
 ## Fase 7 · Deploy
 
-1. Releia as decisões de deploy (DP-*, S-02, A-03, SG-03) e monte um checklist curto: ambiente, variáveis e segredos, domínio e DNS, banco e migrações, backup, monitoramento, rollback.
-2. Rode o checklist com o usuário. **Confirme antes de cada ação externa.** Credenciais: o usuário fornece pelo meio seguro do ambiente; nunca peça para colar segredos no chat.
-3. **Logo depois de publicar, rode sozinho os testes `pos-deploy`** (disponibilidade, HTTPS, domínio, fluxo principal em produção, e-mail e pagamento em modo de teste quando houver). Falha em produção: avise na hora e proponha o rollback decidido na entrevista.
-4. Atualize a seção 4 (URL, como publicar de novo, como reverter), marque as features como `entregue` com o aceite e `SPEC fase manutencao` (só passa com os testes `pos-deploy` passados).
+Detalhes e formato em `reference/deploy.md`. Resumo:
+
+1. `SPEC deploy-init` monta o checklist (seção 8 do SPEC.md) a partir das decisões DP-*, S-02, A-03, A-05, SG-03, D-03 e D-05. Item sem decisão vira "definir agora". Projeto antigo sem a seção 8: `SPEC migrar` antes.
+2. Rode o checklist com o usuário, item a item: `SPEC set-deploy CK-001 andamento|feito|bloqueado --evidencia "docs/evidencias/arquivo"`. **Confirme antes de cada ação externa.** Credenciais: o usuário fornece pelo meio seguro do ambiente; nunca peça para colar segredos no chat.
+3. Preencha como publicar de novo, como reverter, domínio e monitoramento: `SPEC deploy-info chave "valor"`.
+4. Cada publicação vira registro: `SPEC deploy-registrar --ambiente homologacao|producao --resultado ok|falhou|revertido [--url ..] [--commit ..] [--nota ..]`. Produção `ok` com `--url` grava o endereço oficial.
+5. **Logo depois de publicar, rode sozinho os testes `pos-deploy`** (disponibilidade, HTTPS, domínio, fluxo principal em produção). Falha em produção: avise na hora, proponha o rollback decidido na entrevista e registre `revertido`.
+6. Marque as features como `entregue` com o aceite. `SPEC fase manutencao` só passa com: checklist todo `feito`, uma publicação `producao ok`, URL de produção, features entregues e testes `pos-deploy` passados.
 
 ## Fase 8 · Manutenção e change requests
 
@@ -134,15 +138,15 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 2. `SPEC cr-new "<título>" --features F-00X --motivo "..."`.
 3. **Mini-entrevista só dos blocos afetados**: `SPEC add` com perguntas sob medida (bloco `mudanca` e os blocos tocados), pelo canal de sempre; direcione ao cliente o que for dele. Varredura curta e `SPEC varredura`.
 4. Com respostas fechadas: `SPEC cr-set CR-001 aprovada` (marca as features afetadas como `alterada`), crie ou ajuste features (`origem: CR-001`), tasks **e testes** (inclua regressão do que a mudança pode quebrar) e construa, teste e publique como nas fases 3 a 7.
-5. Ao entregar: `SPEC cr-set CR-001 entregue`, features voltam a `entregue`, seção 4 atualizada, histórico registrado.
+5. Ao entregar: `SPEC cr-set CR-001 entregue`, features voltam a `entregue`, seção 8 (Deploy) atualizada com a nova publicação, histórico registrado.
 
 ## Link do cliente (Netlify)
 
-`NETLIFY` = `python3 ${CLAUDE_SKILL_DIR}/scripts/netlify.py` (`site-ensure [--aleatorio]`, `deploy`, `forms`, `submissions`, `delete-site`). Precisa do token do Netlify (nuvem: credencial salva para `api.netlify.com`; local: `NETLIFY_AUTH_TOKEN`). Fluxo completo e cuidados em `reference/cliente.md`.
+`NETLIFY` = `python3 ${CLAUDE_SKILL_DIR}/scripts/netlify.py` (`site-ensure [--aleatorio] [--ficha .]`, `deploy SITE PASTA [--ficha .]`, `forms`, `submissions`, `delete-site`). Sempre use `--ficha .` no `deploy`: é assim que o painel sabe se a página do cliente está publicada. Precisa do token do Netlify (nuvem: credencial salva para `api.netlify.com`; local: `NETLIFY_AUTH_TOKEN`). Fluxo completo e cuidados em `reference/cliente.md`.
 
 ## Painel e documento (visual)
 
-- `SPEC render` gera `docs/painel.html` (controle ponta a ponta: fase, entrevista, entregas, features, tasks, pendências, change requests, histórico) e `docs/spec.html` (o SPEC.md formatado para leitura).
+- `SPEC render` gera `docs/painel.html` (controle ponta a ponta, uma aba por etapa, incluindo **Cliente**: página, aguardando, respostas travadas; e **Deploy**: onde está no ar, checklist, publicações) e `docs/spec.html` (o SPEC.md formatado para leitura).
 - Sempre que o usuário pedir "painel" ou "status visual", rode `render` e informe os caminhos. Para ver no celular, ofereça publicar como artifact privado (`publish_files` com `docs/painel.html` como `index.html`, sem capacidades) e entregue o link.
 
 ## Comandos do motor (`SPEC ...`)
@@ -180,4 +184,9 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `set-feature ID estado` / `set-task ID estado` | muda estados (task: pendente, andamento, feita, bloqueada) |
 | `hist "texto"` / `new-id F\|T\|CR\|E\|TS` | histórico / próximo id |
 | `cr-new` / `cr-set ID estado` | change requests |
-| `render` | gera os HTMLs |
+| `deploy-init [--forcar]` | monta o checklist de deploy (seção 8) a partir das decisões |
+| `set-deploy CK-ID pendente\|andamento\|feito\|bloqueado [--evidencia ..]` | estado de um item do checklist |
+| `deploy-info chave "valor"` | url, ambiente, dominio, como_publicar, como_reverter, monitoramento |
+| `deploy-registrar --ambiente A --resultado ok\|falhou\|revertido [--url ..] [--commit ..] [--nota ..]` | registra uma publicação |
+| `migrar` | atualiza SPEC.md antigo (cria a seção 8 Deploy; Change requests vira 9 e Histórico 10) |
+| `render` | gera os HTMLs (painel com abas: Visão geral, Entrevista, Cliente, Features, Tasks, Testes, Deploy, Histórico) |

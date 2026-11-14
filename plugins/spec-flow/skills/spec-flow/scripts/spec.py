@@ -320,6 +320,20 @@ def cmd_status(a, raiz):
     print(f"Features: {d['features'] or 'nenhuma'}")
     print(f"Tasks: {d['tasks']}")
     print(f"Testes: {d['testes'] or 'nenhum no plano'}")
+    dp = S.deploy(md)
+    if dp["checklist"] or dp["publicacoes"]:
+        print(f"Deploy: checklist {sum(1 for i in dp['checklist'] if i['estado'] == 'feito')}/{len(dp['checklist'])} · publicações: {len(dp['publicacoes'])}"
+              f" · URL: {dp['info'].get('url') or '—'}")
+    if e:
+        pc = estado_pagina_cliente(md, e)
+        if pc["gerada_em"] or pc["deve"]:
+            if not pc["gerada_em"]:
+                estado = "ainda NÃO criada (export-cliente)"
+            else:
+                estado = "publicada" if pc["publicada"] else "gerada, NÃO publicada (netlify.py deploy ... --ficha .)"
+                if pc["desatualizada"]:
+                    estado += f" · DESATUALIZADA (faltam {', '.join(pc['faltam']) or '—'}; sobram {', '.join(pc['sobram']) or '—'})"
+            print(f"Página do cliente: {estado}")
     if crs:
         print("Change requests em aberto: " + ", ".join(d["crs_abertas"]))
     print(f"Entrevista pelo celular: {d['entrevista_web']}")
@@ -603,9 +617,12 @@ def cmd_export_cliente(a, raiz):
     S.gravar(os.path.join(pasta, "obrigado.html"), S.ler(os.path.join(SKILL, "templates", "obrigado.html")))
     S.gravar(os.path.join(pasta, "robots.txt"), "User-agent: *\nDisallow: /\n")
     S.gravar(os.path.join(pasta, "_headers"), "/*\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer\n")
+    e["pagina_cliente"] = {"gerada_em": S.agora(), "ids": sorted(p["id"] for p in novas), "rodada": (e.get("rodadas") or [{}])[-1].get("n")}
+    salvar_entrev(raiz, e)
     sync_decisoes(raiz)
     print(pasta)
     print(f"{len(novas)} perguntas novas · {len(reg)} respostas registradas (travadas) na página do cliente.")
+    print("Lembrete: publique no mesmo site (`netlify.py deploy <id> .spec/cliente --ficha .`) para o painel marcar como publicada.")
 
 
 def _arquivo_de(v):
@@ -1100,6 +1117,16 @@ def erros_de_gate(raiz, atual, destino):
     elif atual == "testes" and destino == "deploy":
         erros += _erros_execucao_testes(md, ("durante-build", "antes-deploy"))
     elif atual == "deploy" and destino == "manutencao":
+        dp = S.deploy(md)
+        if not dp["checklist"]:
+            erros.append("Checklist de deploy vazio: rode `deploy-init` e conclua os itens.")
+        for it in dp["checklist"]:
+            if it["estado"] != "feito":
+                erros.append(f"{it['id']} ({it['titulo'][:50]}): {it['estado']}.")
+        if not any(x["ambiente"] == "producao" and x["resultado"] == "ok" for x in dp["publicacoes"]):
+            erros.append("Nenhuma publicação OK em produção registrada: use `deploy-registrar --ambiente producao --resultado ok --url ...`.")
+        if not dp["info"].get("url"):
+            erros.append("Falta a URL de produção na seção 8 (`deploy-info url https://...`).")
         for f in feats:
             if f["estado"] != "entregue":
                 erros.append(f"{f['id']}: está '{f['estado']}' (precisa estar entregue).")
@@ -1218,6 +1245,87 @@ def cmd_set_task(a, raiz):
             dica = f" Todas as tasks de {feat['id']} estão feitas: mova a feature para em-teste (`set-feature {feat['id']} em-teste`)."
     S.gravar(caminhos(raiz)["spec"], md)
     print(f"{a.id}: {a.estado}.{dica}")
+
+
+DEPLOY_PADRAO = [
+    ("Ambiente de produção criado no provedor", ("S-02", "A-03")),
+    ("Variáveis de ambiente e segredos configurados no provedor (nunca no repositório)", ("SG-03",)),
+    ("Domínio e DNS apontados, com HTTPS ativo", ("DP-02",)),
+    ("Banco de dados e migrações aplicados em produção", ("D-03",)),
+    ("Backup configurado e restauração testada", ("D-05",)),
+    ("Monitoramento e alertas ativos", ("A-05", "DP-05")),
+    ("Plano de reversão conferido (como voltar à versão anterior)", ("DP-04",)),
+    ("Contas dos serviços no nome combinado", ("DP-03",)),
+    ("Forma de publicação conforme decidido (automática ou manual)", ("DP-01",)),
+]
+
+
+def cmd_deploy_init(a, raiz):
+    md, e = carregar(raiz)
+    d = S.deploy(md)
+    if d["checklist"] and not a.forcar:
+        die("o checklist de deploy já existe. Use --forcar para recriar (perde o andamento).")
+    por_id = {p["id"]: p for p in e["perguntas"]} if e else {}
+
+    def decisao(i):
+        p = por_id.get(i)
+        return f"{i}: {texto_resposta(p)}" if p and p.get("resposta") and p["resposta"]["tipo"] != "bypass" else ""
+    linhas = ["Onde o sistema está no ar, como publicar de novo, como reverter e o checklist da publicação.", "",
+              "- ambiente: producao", f"- como_publicar: {decisao('DP-01').split(': ', 1)[-1] or 'a definir'}",
+              f"- como_reverter: {decisao('DP-04').split(': ', 1)[-1] or 'a definir'}",
+              f"- monitoramento: {(decisao('A-05') or decisao('DP-05')).split(': ', 1)[-1] or 'a definir'}",
+              f"- dominio: {decisao('DP-02').split(': ', 1)[-1] or 'a definir'}", "", "### Checklist", ""]
+    for n, (titulo, ids) in enumerate(DEPLOY_PADRAO, 1):
+        linhas.append(f"- [ ] CK-{n:03d} · {titulo}")
+        nota = "; ".join(x for x in (decisao(i) for i in ids) if x)
+        linhas.append(f"  - nota: {nota or 'decisão não registrada na entrevista: definir agora'}")
+    linhas += ["", "### Publicações", "", "(nenhuma publicação ainda)"]
+    novo = S.trocar_corpo(md, 8, "\n".join(linhas))
+    S.gravar(caminhos(raiz)["spec"], S.add_historico(novo, "checklist de deploy criado a partir das decisões da entrevista"))
+    print(f"Checklist de deploy criado com {len(DEPLOY_PADRAO)} itens a partir das decisões. Ajuste a seção 8 do SPEC.md se o projeto pedir mais.")
+
+
+def cmd_set_deploy(a, raiz):
+    md, _ = carregar(raiz)
+    if a.estado not in S.CK_MARCA_DE:
+        die(f"estado inválido: {a.estado}. Use: {', '.join(S.CK_MARCA_DE)}")
+    md = S.set_marca_checklist(md, a.id, a.estado, a.evidencia)
+    md = S.add_historico(md, f"{a.id} → {a.estado}" + (f" (evidência: {a.evidencia})" if a.evidencia else ""))
+    S.gravar(caminhos(raiz)["spec"], md)
+    print(f"{a.id}: {a.estado}")
+
+
+def cmd_deploy_info(a, raiz):
+    md, _ = carregar(raiz)
+    S.gravar(caminhos(raiz)["spec"], S.set_info_deploy(md, a.chave, a.valor))
+    print(f"{a.chave}: {a.valor}")
+
+
+def cmd_deploy_registrar(a, raiz):
+    md, _ = carregar(raiz)
+    extras = " ".join(x for x in ((f"url={a.url}" if a.url else ""), (f"commit={a.commit}" if a.commit else ""), (a.nota or "")) if x)
+    md = S.add_publicacao(md, f"- {S.hoje()} · {a.ambiente} · {a.resultado}" + (f" · {extras}" if extras else ""))
+    if a.resultado == "ok" and a.ambiente == "producao" and a.url:
+        md = S.set_info_deploy(md, "url", a.url)
+    md = S.add_historico(md, f"publicação em {a.ambiente}: {a.resultado}" + (f" ({a.url})" if a.url else ""))
+    S.gravar(caminhos(raiz)["spec"], md)
+    print(f"Publicação registrada: {a.ambiente} · {a.resultado}")
+
+
+def cmd_migrar(a, raiz):
+    """Atualiza um SPEC.md criado antes da seção de Deploy (renumera e insere a seção 8)."""
+    md, _ = carregar(raiz)
+    if re.search(r"^## 8\. Deploy", md, re.M):
+        print("SPEC.md já está na versão atual.")
+        return
+    if not re.search(r"^## 8\. Change requests", md, re.M):
+        die("não reconheci a estrutura do SPEC.md (esperava '## 8. Change requests').")
+    md = re.sub(r"^## 9\. Histórico", "## 10. Histórico", md, flags=re.M)
+    secao = ("## 8. Deploy\n\nOnde o sistema está no ar, como publicar de novo, como reverter e o checklist da publicação. "
+             "Preenchido na fase de Deploy (`deploy-init` monta o esqueleto).\n\n(nenhuma publicação ainda)\n\n## 9. Change requests")
+    md = re.sub(r"^## 8\. Change requests", secao, md, count=1, flags=re.M)
+    S.gravar(caminhos(raiz)["spec"], S.add_historico(md, "SPEC.md migrado: seção 8 (Deploy) criada; Change requests = 9; Histórico = 10"))
+    print("Migrado: seção 8 (Deploy) criada; Change requests agora é a 9 e Histórico a 10.")
 
 
 def cmd_testes(a, raiz):
@@ -1392,6 +1500,23 @@ def cmd_cliente_lote(a, raiz):
     print(f"{n} perguntas direcionadas ao cliente. Rode `export-cliente` para gerar a página.")
 
 
+def estado_pagina_cliente(md, e):
+    """Compara o que DEVERIA estar na página do cliente com o que foi gerado/publicado."""
+    f = S.ficha(md)
+    deve = sorted(p["id"] for p in _cliente_ativas(e)) if e else []
+    pg = (e or {}).get("pagina_cliente") or {}
+    gerada = pg.get("ids", [])
+    ainda_ativas_na_gerada = [i for i in gerada if i in deve]
+    faltam = [i for i in deve if i not in gerada]
+    sobram = [i for i in gerada if i not in deve and not any(x["id"] == i and x.get("respostas_cliente") for x in (e or {}).get("perguntas", []))]
+    pub = f.get("cliente_publicada_em", "")
+    return {"url": f.get("cliente_url", ""), "site_id": f.get("cliente_site_id", ""), "gerada_em": pg.get("gerada_em", ""), "publicada_em": pub,
+            "deve": deve, "gerada": gerada, "faltam": faltam, "sobram": sobram,
+            "publicada": bool(pub) and bool(pg.get("gerada_em")) and pub >= pg.get("gerada_em", ""),
+            "desatualizada": bool(faltam or sobram),
+            "a_publicar": bool(pg.get("gerada_em")) and not (bool(pub) and pub >= pg["gerada_em"])}
+
+
 def cmd_hist(a, raiz):
     md, _ = carregar(raiz)
     S.gravar(caminhos(raiz)["spec"], S.add_historico(md, a.texto))
@@ -1408,7 +1533,7 @@ def cmd_cr_new(a, raiz):
     cid = S.proximo_id(md, "CR")
     bloco = f"### {cid} · {a.titulo}\n- estado: aberta\n- data: {S.hoje()}\n- features: {a.features or '—'}\n- motivo: {a.motivo or '—'}\n"
     for s in S.secoes(md):
-        if s["num"] == 8:
+        if s["num"] == 9:
             corpo7 = md[s["ini"]:s["fim"]].rstrip("\n")
             md = md[:s["ini"]] + corpo7 + "\n\n" + bloco + "\n" + md[s["fim"]:]
             break
@@ -1606,6 +1731,27 @@ def main():
     p.add_argument("--ids", help="IDs separados por vírgula")
     p.add_argument("--sugeridas", action="store_true", help="todas as sugeridas")
     p.set_defaults(f=cmd_cliente_lote)
+    p = sp.add_parser("deploy-init", help="monta o checklist de deploy (seção 8) a partir das decisões da entrevista")
+    p.add_argument("--forcar", action="store_true")
+    p.set_defaults(f=cmd_deploy_init)
+    p = sp.add_parser("set-deploy", help="muda o estado de um item do checklist de deploy (CK-xxx)")
+    p.add_argument("id")
+    p.add_argument("estado", choices=list(S.CK_MARCA_DE))
+    p.add_argument("--evidencia")
+    p.set_defaults(f=cmd_set_deploy)
+    p = sp.add_parser("deploy-info", help="grava um campo da ficha de deploy (url, como_publicar, como_reverter, monitoramento, dominio)")
+    p.add_argument("chave")
+    p.add_argument("valor")
+    p.set_defaults(f=cmd_deploy_info)
+    p = sp.add_parser("deploy-registrar", help="registra uma publicação (e atualiza a URL de produção quando ok)")
+    p.add_argument("--ambiente", default="producao")
+    p.add_argument("--resultado", required=True, choices=["ok", "falhou", "revertido"])
+    p.add_argument("--url")
+    p.add_argument("--commit")
+    p.add_argument("--nota")
+    p.set_defaults(f=cmd_deploy_registrar)
+    p = sp.add_parser("migrar", help="atualiza um SPEC.md antigo para a estrutura atual (seção 8 Deploy)")
+    p.set_defaults(f=cmd_migrar)
     p = sp.add_parser("hist", help="registra uma linha no histórico")
     p.add_argument("texto")
     p.set_defaults(f=cmd_hist)

@@ -112,3 +112,12 @@ Limite honesto: "somente leitura" vale para o cliente. Quem controla a conta do 
 ## Limpeza
 
 Sites de piloto: `NETLIFY delete-site <id>`. Só apague um site de cliente com autorização do usuário.
+
+
+## Aba Cliente do painel e página desatualizada
+
+A aba *Cliente* mostra: endereço da página e se está **publicada**, **gerada mas não publicada** ou **desatualizada** (marcou ou desmarcou perguntas depois de gerar); as perguntas **aguardando** o dono do negócio (com sua resposta provisória e a origem: 📌 sugerida por você ou escolhida pelo usuário); as **respostas recebidas** por rodada, travadas, com código do registro, e se já foram **traduzidas** e tiveram o **impacto verificado**; e as sugestões que o usuário dispensou.
+
+- `export-cliente` guarda o que foi gerado. Depois de gerar, **sempre publique**: `netlify.py deploy SITE_ID .spec/cliente --ficha .`. O `--ficha .` grava `cliente_publicada_em`, e é isso que o painel compara.
+- Página gerada e não publicada = o cliente não vê nada. Isso aparece como pendência na Visão geral.
+- Perguntas marcadas ou desmarcadas depois da geração = página desatualizada: rode `export-cliente` e publique de novo no mesmo site (o endereço não muda).

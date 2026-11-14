@@ -14,6 +14,8 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL = os.path.join(RAIZ, "plugins", "spec-flow", "skills", "spec-flow")
 SPEC = os.path.join(SKILL, "scripts", "spec.py")
 NETLIFY = os.path.join(SKILL, "scripts", "netlify.py")
+sys.path.insert(0, os.path.join(SKILL, "scripts"))
+import specmd as S  # noqa: E402
 OK, FALHAS = 0, []
 
 
@@ -269,7 +271,28 @@ def teste_features_tasks(d):
     sp(d, "set-feature", "F-002", "entregue")
     ok, out = sp(d, "fase", "manutencao", falha=True)
     verifica("manutenção barra teste pós-deploy pendente", ok and "TS-004" in out, out)
+    verifica("manutenção barra checklist vazio e sem publicação", "Checklist de deploy vazio" in out and "publicação OK" in out, out)
     sp(d, "set-teste", "TS-004", "passou", "--evidencia", "curl 200")
+    ok, out = sp(d, "deploy-init")
+    verifica("deploy-init monta o checklist padrão", ok and "9 itens" in out, out)
+    verifica("deploy-init não recria sem --forcar", sp(d, "deploy-init", falha=True)[0])
+    ck = S.deploy(ler(os.path.join(d, "SPEC.md")))["checklist"]
+    verifica("checklist tem 9 itens abertos", len(ck) == 9 and all(i["estado"] == "pendente" for i in ck), str(ck[:1]))
+    ok, out = sp(d, "fase", "manutencao", falha=True)
+    verifica("manutenção barra itens abertos do checklist", ok and "CK-001" in out, out)
+    verifica("set-deploy estado inválido recusado", sp(d, "set-deploy", "CK-001", "quase", falha=True)[0])
+    for i in ck:
+        sp(d, "set-deploy", i["id"], "feito", "--evidencia", "docs/evidencias/deploy-ok.txt" if i["id"] == "CK-001" else "")
+    ok, out = sp(d, "fase", "manutencao", falha=True)
+    verifica("manutenção barra sem publicação OK em produção", ok and "publicação OK" in out, out)
+    verifica("deploy-registrar falhou não conta", sp(d, "deploy-registrar", "--ambiente", "producao", "--resultado", "falhou", "--nota", "DNS")[0])
+    ok, out = sp(d, "fase", "manutencao", falha=True)
+    verifica("publicação falha continua barrando", ok and "publicação OK" in out, out)
+    verifica("deploy-registrar ok grava URL", sp(d, "deploy-registrar", "--ambiente", "producao", "--resultado", "ok", "--url", "https://exemplo.com.br", "--commit", "abc1234")[0])
+    dp = S.deploy(ler(os.path.join(d, "SPEC.md")))
+    verifica("URL de produção na ficha de deploy", dp["info"].get("url") == "https://exemplo.com.br", str(dp["info"]))
+    verifica("publicações registradas (falhou e ok)", [x["resultado"] for x in dp["publicacoes"]] == ["falhou", "ok"], str(dp["publicacoes"]))
+    verifica("evidência do checklist guardada", dp["checklist"][0]["evidencia"] == "docs/evidencias/deploy-ok.txt", str(dp["checklist"][0]))
     verifica("fase manutencao", sp(d, "fase", "manutencao")[0])
     ok, out = sp(d, "cr-new", "Remarcar online", "--features", "F-002", "--motivo", "pedido")
     verifica("cr-new devolve CR-001", ok and out.strip() == "CR-001", out)
@@ -278,7 +301,11 @@ def teste_features_tasks(d):
     verifica("histórico registra fases, testes e CR", all(k in ler(os.path.join(d, "SPEC.md")) for k in ("CR-001 aberta", "fase: Deploy → Manutenção", "TS-001 → passou")))
     sp(d, "render")
     pn = ler(os.path.join(d, "docs", "painel.html"))
-    verifica("painel tem as abas por etapa", all(k in pn for k in ('data-t="entrevista"', 'data-t="features"', 'data-t="tasks"', 'data-t="testes"', 'data-t="historico"')))
+    verifica("painel tem as abas por etapa", all(k in pn for k in ('data-t="entrevista"', 'data-t="cliente"', 'data-t="features"', 'data-t="tasks"', 'data-t="testes"', 'data-t="deploy"', 'data-t="historico"')))
+    verifica("aba Deploy mostra URL, checklist e publicações", "https://exemplo.com.br" in pn and "Checklist de deploy" in pn and "CK-001" in pn and "abc1234" in pn and "Ambiente de produção criado" in pn)
+    verifica("aba Deploy linka evidência do checklist", 'href="evidencias/deploy-ok.txt"' in pn)
+    verifica("aba Deploy lista teste pós-deploy", "Testes depois do deploy" in pn and "TS-004" in pn)
+    verifica("aba Cliente existe sem página criada", "Página do cliente" in pn and "ainda não criada" in pn)
     verifica("aba de testes mostra momento, modo e evidência", "Depois do deploy" in pn and "🤖 autônomo" in pn and "docs/evidencias/e2e-ok.png" in pn)
     verifica("painel mostra 9 fases com Testes", "Testes</li>" in pn)
 
@@ -341,6 +368,7 @@ def teste_cliente(d):
     for k in ('name="v_U-06_paleta"', 'name="v_U-06_layout"', 'name="v_U-06_tipografia"', 'name="l_U-06"', 'type="file"', 'name="g_D-01"',
               'enctype="multipart/form-data"', 'data-netlify="true"', 'netlify-honeypot="bot-field"', 'rel="noopener noreferrer"', "8 MB"):
         verifica(f"página contém {k}", k in h)
+    verifica("aviso de privacidade na página do cliente", 'id="priv"' in h and "não compartilhe" in h and "senhas" in h)
     verifica("robots e headers de não indexação", all(os.path.exists(os.path.join(d, ".spec", "cliente", f)) for f in ("robots.txt", "_headers", "obrigado.html")))
     # --- respostas do cliente
     env1 = [{"id": "s1", "em": "2026-11-14T18:00:00Z", "data": {
@@ -399,6 +427,31 @@ def teste_cliente(d):
     ok, out = sp(d, "export-cliente")
     h = ler(os.path.join(d, ".spec", "cliente", "index.html"))
     verifica("sem perguntas novas a página vira só registro (form oculto)", ok and "0 perguntas novas" in out and 'enctype="multipart/form-data" data-netlify="true" netlify-honeypot="bot-field" hidden' in h)
+    # --- aba Cliente do painel
+    sp(d, "render")
+    pn = ler(os.path.join(d, "docs", "painel.html"))
+    verifica("aba Cliente mostra respostas recebidas com código e travadas", "Respostas recebidas (" in pn and "Rodada 1" in pn and "Vou vender mais" in pn and "Código do registro" in pn and "🔒" in pn)
+    verifica("aba Cliente mostra 'a traduzir' e 'impacto' coerentes", "traduzida" in pn or "a traduzir" in pn)
+    verifica("aba Cliente: página gerada e ainda não publicada", "gerada, ainda não publicada" in pn)
+    verifica("página em dia não gera pendência de atualização", "desatualizada" not in pn)
+    verifica("página gerada e não publicada vira pendência própria", "ainda não está publicada" in pn)
+    sp(d, "cliente", "X-01", "--texto", "Quantos pedidos por mês?")
+    sp(d, "render")
+    pn = ler(os.path.join(d, "docs", "painel.html"))
+    verifica("marcar pergunta depois de gerar deixa a página desatualizada (aba + pendência)", pn.count("desatualizada") >= 2 and "X-01" in pn)
+    verifica("status também acusa a página desatualizada", "desatualizada" in sp(d, "status")[1].lower())
+    sp(d, "export-cliente")
+    sp(d, "render")
+    verifica("regerar a página limpa a desatualização", "desatualizada" not in ler(os.path.join(d, "docs", "painel.html")))
+    sp(d, "cliente", "X-01", "--remover")
+    sp(d, "export-cliente")
+    # --- publicar grava a data na ficha (sem rede: grava direto)
+    sys.path.insert(0, os.path.join(SKILL, "scripts"))
+    import netlify as N
+    N.gravar_ficha_campo(d, "cliente_publicada_em", "2999-01-01T00:00:00Z")
+    sp(d, "render")
+    pn = ler(os.path.join(d, "docs", "painel.html"))
+    verifica("publicada depois de gerada: aba mostra 'publicada'", ">publicada<" in pn and "2999-01-01 00:00" in pn, "")
     return d
 
 
@@ -569,6 +622,22 @@ def teste_celular_e_render(d):
             verifica(f"JS da página {nome} sem erro de sintaxe", r.returncode == 0, r.stderr[:200])
 
 
+def teste_migrar():
+    print("• migrar: SPEC.md antigo ganha a seção Deploy")
+    d = novo(nome="Antigo", prof="p")
+    md = ler(os.path.join(d, "SPEC.md"))
+    i = md.index("## 8. Deploy")
+    j = md.index("## 9. Change requests")
+    antigo = md[:i] + md[j:].replace("## 9. Change requests", "## 8. Change requests").replace("## 10. Histórico", "## 9. Histórico")
+    open(os.path.join(d, "SPEC.md"), "w", encoding="utf-8").write(antigo)
+    verifica("fixture sem seção Deploy", "## 8. Deploy" not in antigo and "## 9. Histórico" in antigo)
+    ok, out = sp(d, "migrar")
+    novo_md = ler(os.path.join(d, "SPEC.md"))
+    verifica("migrar insere Deploy e renumera", ok and "## 8. Deploy" in novo_md and "## 9. Change requests" in novo_md and "## 10. Histórico" in novo_md, out)
+    verifica("migrar é idempotente", "já está" in sp(d, "migrar")[1].lower() or "nada" in sp(d, "migrar")[1].lower(), sp(d, "migrar")[1])
+    verifica("histórico continua recebendo registros depois de migrar", sp(d, "hist", "teste")[0] and "teste" in ler(os.path.join(d, "SPEC.md")).split("## 10. Histórico")[1])
+
+
 def teste_netlify_offline():
     print("• netlify.py (sem rede)")
     r = subprocess.run([sys.executable, NETLIFY, "--help"], capture_output=True, text=True)
@@ -600,6 +669,7 @@ def main():
     teste_caixa_do_cliente()
     dc = teste_cliente(d)
     teste_celular_e_render(dc)
+    teste_migrar()
     teste_netlify_offline()
     print(f"\n{OK} verificações ok, {len(FALHAS)} falhas")
     for f in FALHAS:
