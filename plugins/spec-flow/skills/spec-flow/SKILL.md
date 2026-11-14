@@ -74,7 +74,6 @@ Resumo do processo:
    - **Seção 2 (Escopo)**: o que está dentro e o que está **fora** do escopo.
    - **Seção 4 (Como está hoje)**: stack, arquitetura, como rodar, como publicar; só com o que foi decidido. Lacuna vira "A definir" com o ID da pergunta pendente.
 2. Mostre um resumo ao usuário e peça aprovação. `SPEC fase features` só depois do "ok".
-3. Se houve perguntas ao dono do negócio, ofereça o **e-mail de formalização das definições** como **rascunho no Gmail** (`reference/cliente.md`, seção "Formalização por e-mail"). Nunca envie sozinho.
 
 ## Fase 3 · Features e entregas
 

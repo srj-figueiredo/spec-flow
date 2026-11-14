@@ -483,6 +483,8 @@ def cmd_export_cliente(a, raiz):
     os.makedirs(pasta, exist_ok=True)
     S.gravar(os.path.join(pasta, "index.html"), pagina)
     S.gravar(os.path.join(pasta, "obrigado.html"), S.ler(os.path.join(SKILL, "templates", "obrigado.html")))
+    S.gravar(os.path.join(pasta, "robots.txt"), "User-agent: *\nDisallow: /\n")
+    S.gravar(os.path.join(pasta, "_headers"), "/*\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer\n")
     sync_decisoes(raiz)
     print(pasta)
     print(f"{len(novas)} perguntas novas · {len(reg)} respostas registradas (travadas) na página do cliente.")

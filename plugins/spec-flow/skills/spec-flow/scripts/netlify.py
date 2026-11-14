@@ -6,7 +6,7 @@ Autenticação:
   - Máquina local: exporte NETLIFY_AUTH_TOKEN (token pessoal do Netlify).
 
 Comandos:
-  site-ensure NOME            cria o site se não existir; imprime JSON {id, name, url}
+  site-ensure NOME [--aleatorio]   cria o site (com --aleatorio, sempre novo e com sufixo impossível de adivinhar); imprime JSON {id, name, url}
   deploy SITE_ID PASTA        publica a pasta (zip) e espera ficar no ar; imprime JSON {deploy_id, state, url}
   forms SITE_ID               lista os formulários detectados no site
   submissions SITE_ID [--form NOME]   envios do formulário, normalizados, mais antigos primeiro (JSON)
@@ -16,6 +16,7 @@ import argparse
 import io
 import json
 import os
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -68,11 +69,16 @@ def die(msg):
 
 
 def cmd_site_ensure(a):
-    for s in api("GET", "/sites", params="per_page=100&filter=all") or []:
-        if s["name"] == a.nome:
-            print(json.dumps({"id": s["id"], "name": s["name"], "url": s.get("ssl_url") or s.get("url"), "criado": False}))
-            return
-    s = api("POST", "/sites", json.dumps({"name": a.nome}), "application/json")
+    nome = a.nome
+    if a.aleatorio:
+        # endereço impossível de adivinhar: quem tem o link acessa, ninguém mais acha
+        nome = f"{a.nome}-{secrets.token_hex(5)}"[:63]
+    else:
+        for s in api("GET", "/sites", params="per_page=100&filter=all") or []:
+            if s["name"] == nome:
+                print(json.dumps({"id": s["id"], "name": s["name"], "url": s.get("ssl_url") or s.get("url"), "criado": False}))
+                return
+    s = api("POST", "/sites", json.dumps({"name": nome}), "application/json")
     print(json.dumps({"id": s["id"], "name": s["name"], "url": s.get("ssl_url") or s.get("url"), "criado": True}))
 
 
@@ -133,7 +139,7 @@ def cmd_delete_site(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    p = sp.add_parser("site-ensure"); p.add_argument("nome"); p.set_defaults(f=cmd_site_ensure)
+    p = sp.add_parser("site-ensure"); p.add_argument("nome"); p.add_argument("--aleatorio", action="store_true", help="acrescenta sufixo aleatório (link privado)"); p.set_defaults(f=cmd_site_ensure)
     p = sp.add_parser("deploy"); p.add_argument("site_id"); p.add_argument("pasta"); p.set_defaults(f=cmd_deploy)
     p = sp.add_parser("forms"); p.add_argument("site_id"); p.set_defaults(f=cmd_forms)
     p = sp.add_parser("submissions"); p.add_argument("site_id"); p.add_argument("--form"); p.set_defaults(f=cmd_submissions)
