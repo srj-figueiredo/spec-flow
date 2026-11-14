@@ -22,7 +22,7 @@ Estado: a pergunta vira **aguardando cliente** (roxo no painel e na página). El
 Pré-requisito: token do Netlify (nuvem: credencial salva para `api.netlify.com`; máquina local: `NETLIFY_AUTH_TOKEN`). Um site por projeto, nome `spec-flow-<slug-do-projeto>` mais um sufixo aleatório.
 
 1. `SPEC export-cliente [--intro "texto de abertura"]` gera `.spec/cliente/` (`index.html` com o formulário e `obrigado.html`).
-2. `NETLIFY site-ensure spec-flow-<slug> --aleatorio` cria o site com endereço impossível de adivinhar e devolve `id` e `url`. Guarde: `SPEC ficha cliente_site_id <id>` e `SPEC ficha cliente_url <url>`.
+2. `NETLIFY site-ensure spec-flow-<slug> --aleatorio --ficha .` cria o site com endereço impossível de adivinhar, devolve `id` e `url` e **grava `cliente_site_id` e `cliente_url` na Ficha** (é isso que faz a retomada automática buscar as respostas do cliente).
 3. `NETLIFY deploy <id> .spec/cliente` publica.
 4. **Primeira vez em cada site:** ligue a detecção de formulários (ferramenta do Netlify: `netlify-project-services-updater`, operação `update-forms`, `forms: "enabled"`) e **publique de novo** (passo 3). Confirme com `NETLIFY forms <id>`: deve listar o formulário `entrevista`.
 5. Entregue o link ao usuário para enviar ao cliente.

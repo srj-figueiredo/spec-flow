@@ -29,13 +29,13 @@ Se `${CLAUDE_SKILL_DIR}` aparecer sem substituir, ache o script com `find / -nam
 ## Ao abrir uma sessão (retomada automática)
 
 1. Procure `SPEC.md` na raiz. **Existe:** rode `SPEC status`, mostre em 4 linhas a fase, o progresso e a próxima ação, e **retome de onde parou** (tabela abaixo). **Não existe** e o usuário trouxe uma ideia, um briefing ou uma demanda: comece pela *Fase 0*.
-2. Se a entrevista tiver `entrevista_web` na ficha, **traga as respostas do celular antes de qualquer coisa** (`reference/celular.md`, seção "Retomar").
+2. Se a entrevista tiver `entrevista_slug` na ficha, **traga as respostas do celular antes de qualquer coisa** (`reference/celular.md`, seção "Retomar"). Se tiver `cliente_site_id`, **traga também as respostas do cliente** e faça a verificação de impacto (`reference/cliente.md`).
 3. Se houver change request aberto, retome-o.
 
 | Fase | O que fazer ao retomar |
 |---|---|
 | entrada | terminar o registro do briefing e começar a entrevista |
-| entrevista | importar respostas do celular, seguir com `SPEC next` |
+| entrevista | importar respostas do celular (`celular.md`) **e as do cliente** (`NETLIFY submissions` → `import-cliente`), rodar a **verificação de impacto**, seguir com `SPEC next` |
 | spec | consolidar seções 1, 2 e 4 e pedir aprovação |
 | features | propor ou ajustar features e entregas |
 | tasks | quebrar features aprovadas em tasks |
@@ -65,9 +65,10 @@ Resumo do processo:
 4. **Escolha o canal:**
    - **Celular/assíncrono (recomendado):** página privada com salvamento automático. Procedimento completo em `reference/celular.md`.
    - **Chat:** `SPEC next -n 4 --json` e `AskUserQuestion` com até 4 perguntas por vez. Em cada pergunta: opção 1 = recomendada (rótulo com "(Recomendada)"), no máximo 2 alternativas adequadas e a opção "Pular (decidir depois)"; a resposta livre o próprio `AskUserQuestion` oferece em "Other". Registre com `SPEC answer <ID> --opt N`, `--text "..."` ou `--bypass`. **Use sempre o chat** quando o cliente exigir sigilo: a página do celular guarda as respostas no serviço da Anthropic.
-5. **Mostre o contador**: "Bloco Stack · pergunta 7 de 31 (podem surgir mais)". `SPEC status` dá os números.
-6. **Varredura de lacunas (obrigatória)** quando as pendentes acabarem: siga o roteiro de `reference/entrevista.md`, adicione o que faltar, e só então `SPEC varredura`.
-7. `SPEC gate` diz se pode sair. Para sair: `SPEC fase spec`. Para pular o questionário todo, o usuário precisa pedir: `SPEC bypass-all --motivo "..."` e depois `SPEC varredura` e `SPEC fase spec --forcar` se necessário. Avise que cada bypass vira pendência no painel.
+5. **Entregue os dois links ao usuário:** (a) a entrevista completa, só dele; (b) a página do cliente, quando houver perguntas direcionadas (`reference/cliente.md`). Diga qual é qual e que o link do cliente não deve ser divulgado.
+6. **Mostre o contador**: "Bloco Stack · pergunta 7 de 31 (podem surgir mais)". `SPEC status` dá os números.
+7. **Varredura de lacunas (obrigatória)** quando as pendentes acabarem: siga o roteiro de `reference/entrevista.md`, adicione o que faltar, e só então `SPEC varredura`.
+8. `SPEC gate` diz se pode sair (barra pendência, bypass não resolvido, decisão em revisão e resposta do cliente sem verificação de impacto). Para sair: `SPEC fase spec`. Para pular o questionário todo, o usuário precisa pedir: `SPEC bypass-all --motivo "..."` e depois `SPEC varredura` e `SPEC fase spec --forcar` se necessário. Avise que cada bypass vira pendência no painel.
 
 ## Fase 2 · Spec
 
@@ -119,7 +120,7 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 
 ## Link do cliente (Netlify)
 
-`NETLIFY` = `python3 ${CLAUDE_SKILL_DIR}/scripts/netlify.py` (`site-ensure`, `deploy`, `forms`, `submissions`, `delete-site`). Fluxo completo e cuidados em `reference/cliente.md`.
+`NETLIFY` = `python3 ${CLAUDE_SKILL_DIR}/scripts/netlify.py` (`site-ensure [--aleatorio]`, `deploy`, `forms`, `submissions`, `delete-site`). Precisa do token do Netlify (nuvem: credencial salva para `api.netlify.com`; local: `NETLIFY_AUTH_TOKEN`). Fluxo completo e cuidados em `reference/cliente.md`.
 
 ## Painel e documento (visual)
 
@@ -135,18 +136,18 @@ Quando o usuário pedir uma mudança (daqui a dias ou meses):
 | `next [-n 4] [--bloco B] [--json]` | próximas perguntas pendentes |
 | `answer ID --opt N \| --text "..." \| --bypass` | registra resposta (`--opt 2,3` em multi) |
 | `dica ID "texto"` / `rec ID N [--nota ".."]` | personaliza pergunta da base |
-| `add --bloco B --q ".." --opt ".." [--opt ..] [--why ..] [--motivo ..] [--multi]` | pergunta do escopo |
+| `add --bloco B [--bloco-nome N] --q ".." --opt ".." [--opt ..] [--why ..] [--motivo ..] [--multi] [--design]` | pergunta do escopo (`--design` = pergunta de design) |
 | `bypass-all [--bloco B] [--motivo ..]` | pula pendentes em lote |
 | `varredura` | registra a varredura de lacunas |
 | `export-web` | gera `.spec/entrevista.html` (página do celular) |
 | `import-answers arquivo.json` | importa respostas do celular |
 | `sync` | regrava o bloco de decisões do SPEC.md |
-| `cliente ID [--texto ..] [--opt ..] [--arquivo] [--design --visual paleta\|layout\|tipografia --ref URL] [--sugerir] [--remover]` | direciona a pergunta ao dono do negócio (upload, opções visuais e referências) |
+| `cliente ID [--texto ..] [--opt ..] [--arquivo [--arquivo-desc ..]] [--design] [--visual paleta\|layout\|tipografia] [--visual-opt "tipo\|Rótulo\|dado"] [--ref "Rótulo\|URL"] [--sugerir] [--remover]` | direciona a pergunta ao dono do negócio (upload, opções visuais e referências) |
 | `export-cliente [--intro ..]` | gera a página do cliente (`.spec/cliente/`) |
 | `import-cliente envios.json` | importa as respostas do cliente (a traduzir) |
 | `impacto [--json]` / `impacto-ok` | checklist de impacto das respostas do cliente sobre decisões já tomadas / registra que foi feito |
 | `revisar ID --motivo ".." --origem ID` / `revisao-ok ID [--nota ..]` | marca decisão afetada para revisão / encerra mantendo |
-| `ficha [chave] [valor]` | lê ou grava campos da Ficha (ex.: `entrevista_web`, `entrevista_slug`, `tasks_paralelas`) |
+| `ficha [chave] [valor]` | lê ou grava campos da Ficha (ex.: `entrevista_web`, `entrevista_slug`, `cliente_site_id`, `cliente_url`, `tasks_paralelas`) |
 | `gate` / `fase DESTINO [--forcar]` | valida e muda de fase |
 | `check` | valida o SPEC.md (ids, dependências, ciclos, arquivos em disputa) |
 | `ready [--json]` | tasks prontas e lote paralelo |

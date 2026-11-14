@@ -758,9 +758,15 @@ def cmd_import(a, raiz):
         tipo = d.get("tipo")
         if tipo == "cliente":
             antigo = p.get("cliente") or {}
-            if atual or antigo.get("em", "") >= d.get("em", ""):
+            # decisão tomada não é direcionável; um bypass mais antigo cede lugar ao direcionamento mais novo
+            if atual and (atual.get("tipo") != "bypass" or atual.get("em", "") >= d.get("em", "")):
                 antigas += 1
                 continue
+            if antigo.get("em", "") >= d.get("em", ""):
+                antigas += 1
+                continue
+            if atual:
+                p.pop("resposta", None)
             if d.get("ativa") is False:
                 p.pop("cliente", None)
                 novas += 1

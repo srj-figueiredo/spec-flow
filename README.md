@@ -19,6 +19,8 @@ o que foi feito e por quê (o próprio Claude também).
 
 Fases: Entrada → Entrevista → Spec → Features → Tasks → Construção → Deploy → Manutenção. Só avança com tudo definido ou com bypass registrado.
 
+> **Guia completo de uso:** [GUIA.md](GUIA.md) · **Testes:** `python3 tests/smoke.py`
+
 ## Instalar
 
 Requisito: `python3` (somente biblioteca padrão).
