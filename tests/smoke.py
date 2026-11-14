@@ -307,7 +307,7 @@ def teste_fluxo_guiado():
     verifica("sugerir-cliente marca as pré-selecionadas", sp(d, "sugerir-cliente", "--ids", "N-03,U-06,D-01")[0] and pergunta(d, "N-03")["selecao_cliente"] == "sugerida")
     lc = json.loads(sp(d, "lista-cliente", "--json")[1])
     verifica("lista separa sugeridas por mim das demais com texto pronto", {x["id"] for x in lc["sugeridas"]} == {"N-03", "U-06", "D-01"} and all(x["id"] not in {"N-03", "U-06", "D-01"} for x in lc["com_texto_pronto"]))
-    verifica("seleção aparece marcada no SPEC.md", "📌 sugerida p/ cliente" in ler(os.path.join(d, "SPEC.md")))
+    verifica("seleção aparece marcada no SPEC.md", "📌 sugerida por mim" in ler(os.path.join(d, "SPEC.md")))
     verifica("plano conta as sugeridas", sum(b["sugeridas_cliente"] for b in json.loads(sp(d, "plano", "--json")[1])) == 3)
     verifica("desmarcar seleção", sp(d, "sugerir-cliente", "--ids", "D-01", "--remover")[0] and "selecao_cliente" not in pergunta(d, "D-01"))
     sp(d, "sugerir-cliente", "--ids", "D-01")
@@ -485,6 +485,53 @@ def teste_controle_total():
     verifica("editar a pergunta do cliente antes de ele responder vale", pergunta(d, "N-05")["cliente"]["texto"] == "Quem aprova? (editei)")
 
 
+def teste_caixa_do_cliente():
+    print("• caixa 'Enviar ao dono do negócio': ligar e desligar são simétricos")
+    d = novo(prof="m")
+    marcadas = ["N-03", "N-04", "N-05", "U-05", "R-01"]
+    sp(d, "sugerir-cliente", "--ids", ",".join(marcadas))
+
+    def vao():
+        st = json.loads(sp(d, "lista-cliente", "--json")[1])
+        return sorted([x["id"] for x in st["sugeridas"]] + [x["id"] for x in st["direcionadas"]])
+
+    def doc(pid, ativa, em, **kw):
+        return {"id": pid, "colecao": "clientes", "data": dict({"ativa": ativa, "em": em}, **kw)}
+
+    def aplicar(docs, nome):
+        json.dump(docs, open(os.path.join(d, nome), "w"))
+        return sp(d, "import-answers", nome)
+    verifica("as sugestões do Claude já VÃO ao cliente (vêm marcadas)", vao() == sorted(marcadas))
+    ok, out = sp(d, "export-cliente")
+    h = ler(os.path.join(d, ".spec", "cliente", "index.html"))
+    verifica("a página do cliente já inclui as marcadas, sem passo extra", all(f'name="t_{i}"' in h for i in marcadas), out)
+    # o cenário relatado: desmarcar UMA, remarcar, repetir, e as outras não mexem
+    aplicar([doc("N-05", False, "2099-01-01T00:00:01Z", dispensada=True)], "a.json")
+    verifica("desmarcar UMA tira só ela", vao() == sorted(set(marcadas) - {"N-05"}), str(vao()))
+    aplicar([doc("N-05", True, "2099-01-01T00:00:02Z", texto="Quem aprova?", opcoes=[])], "b.json")
+    verifica("remarcar a mesma devolve só ela, as outras intactas", vao() == sorted(marcadas), str(vao()))
+    for k in range(3, 9):
+        ligar = k % 2 == 1
+        aplicar([doc("N-05", ligar, f"2099-01-01T00:00:{k:02d}Z", dispensada=not ligar, texto="Quem aprova?")], f"c{k}.json")
+        esperado = sorted(marcadas) if ligar else sorted(set(marcadas) - {"N-05"})
+        verifica(f"ligar/desligar repetido (rodada {k}) não afeta as outras", vao() == esperado, str(vao()))
+    verifica("o estado final segue a última ação do usuário (a última rodada foi 'desligar')", "N-05" not in vao())
+    aplicar([doc("N-05", False, "2099-01-01T00:00:30Z", dispensada=True)], "d.json")
+    aplicar([doc("N-04", False, "2099-01-01T00:00:31Z", dispensada=True)], "e.json")
+    verifica("desmarcar várias, uma por vez, mantém as demais", vao() == sorted(set(marcadas) - {"N-05", "N-04"}), str(vao()))
+    aplicar([doc("N-04", True, "2099-01-01T00:00:32Z", texto="Hoje, como controla?", opcoes=[]), doc("N-05", True, "2099-01-01T00:00:33Z", texto="Quem aprova?", opcoes=[])], "f.json")
+    verifica("remarcar as duas devolve todas", vao() == sorted(marcadas), str(vao()))
+    verifica("o Claude não remarca o que o usuário desligou (sugerir-cliente respeita)", (aplicar([doc("N-04", False, "2099-01-01T00:00:40Z", dispensada=True)], "g.json")[0]
+             and sp(d, "sugerir-cliente", "--ids", "N-04")[0] and "N-04" not in vao()))
+    verifica("ordem das gravações não importa: a mais nova vence mesmo chegando fora de ordem",
+             aplicar([doc("N-03", True, "2099-02-01T00:00:09Z", texto="B"), doc("N-03", False, "2099-02-01T00:00:05Z", dispensada=True)], "h.json")[0] and "N-03" in vao()
+             and pergunta(d, "N-03")["cliente"]["texto"] == "B")
+    ok, out = sp(d, "status")
+    verifica("perguntas marcadas contam como 'aguardando cliente'", "Aguardando o cliente" in out)
+    ok, out = sp(d, "gate", falha=True)
+    verifica("estado coerente no SPEC.md e no painel", sp(d, "render")[0] and "sugerida por mim" in ler(os.path.join(d, "docs", "painel.html")))
+
+
 def teste_celular_e_render(d):
     print("• página do celular, importação de respostas e render")
     q = pergunta(d, "N-01")
@@ -550,6 +597,7 @@ def main():
     teste_fluxo_guiado()
     teste_independencia_e_reabrir()
     teste_controle_total()
+    teste_caixa_do_cliente()
     dc = teste_cliente(d)
     teste_celular_e_render(dc)
     teste_netlify_offline()

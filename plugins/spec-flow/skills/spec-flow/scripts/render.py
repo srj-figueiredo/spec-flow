@@ -164,11 +164,11 @@ def _tab_entrevista(e, ent):
                     minha = ""
                     if p.get("resposta") and p["resposta"]["tipo"] != "bypass":
                         minha = f'<div class="hs">✓ Sua resposta (provisória): {esc(C.texto_resposta(p))}</div>'
-                    dec = "Com o cliente: " + esc(p["cliente"].get("texto", "")) + minha
-                    sit = '<span class="chip cwt">aguardando cliente</span>'
+                    dec = "Com o cliente: " + esc((C.cliente_efetivo(p) or {}).get("texto", "")) + minha
+                    sit = '<span class="chip cwt">aguardando cliente</span>' + (' <span class="chip cwt">📌 sugerida por mim</span>' if p.get("cliente") is None else "")
                 else:
                     dec = "—"
-                    sit = '<span class="chip">pendente</span>' + (' <span class="chip cwt">📌 sugerida p/ cliente</span>' if p.get("selecao_cliente") == "sugerida" else "")
+                    sit = '<span class="chip">pendente</span>'
             extra = ""
             for rc in p.get("respostas_cliente") or []:
                 extra += f'<div class="hs">🔒 Cliente ({esc(rc["em"][:10])}{" · " + esc(rc["respondente"]) if rc.get("respondente") else ""}): {esc(" · ".join(CH.resumo(rc)))}</div>'

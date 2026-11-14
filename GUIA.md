@@ -49,16 +49,15 @@ Diga: *"quero começar um projeto com a spec-flow"*. O Claude cria o projeto (ti
 | **Entrevista completa** | você | todas as perguntas, técnicas e de negócio |
 | **Página do cliente** | o dono do negócio | só as perguntas que você direcionou, em linguagem de negócio |
 
-### A lista inicial do cliente
-Depois de montar o plano, o Claude **propõe a primeira lista para o dono do negócio**: separa o que é de negócio e reescreve em linguagem de negócio (com opções visuais nas de design). Na lista completa, **o que ele pré-selecionou aparece marcado com 📌**, com o texto pronto à vista, e há um filtro "📌 Sugeridas p/ cliente". **A escolha final é sua**, pergunta a pergunta: **Enviar ao cliente (texto sugerido)** com um toque, **Direcionar ao dono do negócio** para editar o texto, mandar uma que ele não marcou (qualquer pergunta com texto pronto serve) ou não mandar uma que ele marcou. Pedir: *"mostra a lista do cliente"*.
+### A lista inicial do cliente: uma caixa por pergunta
+Em **toda pergunta** há uma caixa **"📤 Enviar ao dono do negócio"**: marcada = a pergunta vai para a página do cliente; desmarcada = não vai. As perguntas que o Claude sugeriu **já vêm marcadas** (selo 📌 "sugerida por mim"). Você liga e desliga quando quiser, **quantas vezes quiser**, e uma pergunta nunca afeta as outras. Ao marcar, aparece a pergunta de negócio **já pronta** (inclusive nas técnicas) e o botão **✎ Editar a pergunta do cliente**. Se você desmarcar uma sugestão, ela vira "dispensada" e o Claude não a remarca. O filtro **📤 Indo ao cliente** mostra só as marcadas.
 
 ### Controle total na sua página
 Sua página **não é um formulário para enviar**: é um painel ao vivo, e **cada toque é salvo na hora**. Você pode mudar qualquer coisa, a qualquer momento:
 
 - **Reabrir** qualquer resposta, com pop-up de confirmação ("você já respondeu, tem certeza?"). Pular por cima de uma resposta também pede confirmação.
-- **Revogar o que o Claude marcou** para o cliente (📌 → **Não enviar ao cliente**), e ele não remarca depois.
-- **Revogar o que você mesmo mandou** ao cliente (**Revogar envio**), enquanto o cliente não respondeu.
-- **Marcar para o cliente** qualquer pergunta que o Claude não marcou, com a pergunta já pronta e editável.
+- **Desmarcar o que o Claude marcou** para o cliente (a caixa 📤), e ele não remarca depois; **marcar de novo** quando quiser.
+- **Marcar para o cliente** qualquer pergunta, com a pergunta já pronta e editável; **desmarcar** enquanto o cliente não respondeu.
 - Quando você retoma com o Claude, ele lê o estado **atual**; se a lista do cliente mudou, ele atualiza a página do cliente no mesmo endereço.
 
 Só a página do **cliente** é imutável depois de respondida.
@@ -116,7 +115,7 @@ O `CLAUDE.md` do projeto manda toda sessão nova invocar a skill. Ela mostra a f
 | `dica ID ".."` / `rec ID N [--nota ..]` | personaliza pergunta da base |
 | `add --bloco B --q ".." --opt ".." --neg ".." [--why ..] [--motivo ..] [--multi] [--design]` | pergunta do escopo (`--neg` = versão de negócio, obrigatória) |
 | `plano` / `descartar ID --motivo ..` | plano de perguntas por bloco / pergunta da base que não se aplica |
-| `lista-cliente` | direcionadas, 📌 sugeridas e demais com texto pronto |
+| `lista-cliente` | as que vão ao cliente, as dispensadas e as demais com texto pronto |
 | `sugerir-cliente --ids A,B [--remover]` / `cliente-lote --ids A,B \| --sugeridas` | marca a pré-seleção / direciona várias de uma vez |
 | `reabrir ID [--motivo ..]` | reabre uma pergunta respondida |
 | `bypass-all [--bloco B] [--motivo ..]` / `varredura` | pular em lote / registrar varredura |

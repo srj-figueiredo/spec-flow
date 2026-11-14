@@ -97,13 +97,31 @@ def visiveis(e):
     return [p for p in e["perguntas"] if visivel(p, e) and not p.get("descartada")]
 
 
+def cliente_efetivo(p):
+    """UMA regra para 'esta pergunta vai ao cliente?': devolve o que vai, ou None.
+    - decisão explícita (p['cliente']) manda: ligada = vai; desligada = não vai;
+    - sem decisão explícita, a SUGESTÃO do Claude (selecao 'sugerida', com texto de negócio) já vale: vem marcada, o usuário desmarca quando quiser."""
+    c = p.get("cliente")
+    if c is not None:
+        return c if c.get("ativa") else None
+    neg = p.get("neg") or {}
+    if p.get("selecao_cliente") == "sugerida" and neg.get("q"):
+        return {"ativa": True, "texto": neg["q"], "opcoes": list(neg.get("o", [])), "arquivo": False, "arquivo_desc": "",
+                "visuais": [], "refs": [], "origem": "sugerida"}
+    return None
+
+
+def vai_ao_cliente(p):
+    return cliente_efetivo(p) is not None
+
+
 def estado_p(p):
     """Responder e direcionar ao cliente são INDEPENDENTES: uma pergunta direcionada continua aguardando o cliente
     mesmo que o usuário já tenha dado a sua resposta (provisória) ou pulado."""
     r = p.get("resposta")
     if r and (p.get("revisao") or {}).get("aberta"):
         return "revisar"
-    if (p.get("cliente") or {}).get("ativa") and (not r or not p.get("respostas_cliente")):
+    if vai_ao_cliente(p) and (not r or not p.get("respostas_cliente")):
         return "aguardando"
     if not r:
         return "pendente"
@@ -166,13 +184,13 @@ def sync_decisoes(raiz):
                 if rc:
                     dec = "RESPOSTA DO CLIENTE (a traduzir): " + " · ".join(CH.resumo(rc))
                 else:
-                    dec = "AGUARDANDO CLIENTE: " + (p["cliente"].get("texto") or p["q"])
+                    dec = "AGUARDANDO CLIENTE: " + (cliente_efetivo(p).get("texto") or p["q"])
                 if p.get("resposta") and p["resposta"]["tipo"] != "bypass":
                     dec = f"Sua resposta provisória: {texto_resposta(p)} — " + dec
-                origem = "cliente"
+                origem = "cliente" + (" · 📌 sugerida por mim" if p.get("cliente") is None else "")
             else:
                 dec = "—"
-                origem = "pendente · 📌 sugerida p/ cliente" if p.get("selecao_cliente") == "sugerida" else "pendente"
+                origem = "pendente"
             cel = lambda t: re.sub(r"\s+", " ", str(t)).replace("|", "/")  # noqa: E731
             linhas.append(f"| {p['id']} | {cel(p['q'])} | {cel(dec)} | {origem} |")
         linhas.append("")
@@ -436,6 +454,8 @@ def cmd_cliente(a, raiz):
         die(f"pergunta {a.id} não existe")
     if a.remover:
         p.pop("cliente", None)
+        if p.get("selecao_cliente") == "sugerida":
+            p["selecao_cliente"] = "dispensada"
         salvar_entrev(raiz, e)
         print(f"{a.id}: não está mais direcionada ao cliente.")
         return
@@ -473,7 +493,7 @@ def cmd_cliente(a, raiz):
 
 def _cliente_ativas(e):
     """Perguntas direcionadas ao cliente que ainda não receberam resposta dele (vão para o formulário)."""
-    return [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("respostas_cliente")]
+    return [p for p in visiveis(e) if vai_ao_cliente(p) and not p.get("respostas_cliente")]
 
 
 def _fmt(iso):
@@ -528,7 +548,7 @@ def cmd_export_cliente(a, raiz):
     cards = []
     avisos = []
     for i, p in enumerate(novas, 1):
-        c = p["cliente"]
+        c = cliente_efetivo(p)
         if p.get("design") and not c.get("visuais") and not c.get("refs"):
             c["visuais"] = [{"tipo": t, "titulo": CH.TITULOS[t], "opcoes": CH.opcoes_padrao(t)} for t in ("paleta", "layout")]
             avisos.append(p["id"])
@@ -821,7 +841,8 @@ def _aplicar_cliente(p, d):
         return False
     if d.get("ativa") is False:
         p.pop("cliente", None)
-        if d.get("dispensada"):  # o usuário revogou a minha sugestão de enviar esta pergunta ao cliente
+        # desligar uma pergunta que eu tinha sugerido é uma DISPENSA (simétrica a ligar de novo); o Claude não remarca
+        if d.get("dispensada") or p.get("selecao_cliente") in ("sugerida", "dispensada"):
             p["selecao_cliente"] = "dispensada"
         return True
     p["cliente"] = {"ativa": True, "texto": d.get("texto", ""), "opcoes": [x for x in d.get("opcoes", []) if x],
@@ -897,7 +918,7 @@ def cmd_reabrir(a, raiz):
     salvar_entrev(raiz, e)
     sync_decisoes(raiz)
     print(f"{a.id}: reaberta. A resposta anterior ficou no histórico da pergunta"
-          + (" e ela continua direcionada ao cliente." if (p.get("cliente") or {}).get("ativa") else "."))
+          + (" e ela continua direcionada ao cliente." if vai_ao_cliente(p) else "."))
 
 
 def cmd_varredura(a, raiz):
@@ -1265,8 +1286,8 @@ def cmd_plano(a, raiz):
         if ps or desc:
             blocos.append({"bloco": b["nome"], "escopo": sum(1 for p in ps if p.get("origem") == "escopo"),
                            "base": sum(1 for p in ps if p.get("origem", "base") == "base"), "descartadas": len(desc),
-                           "para_o_cliente": sum(1 for p in ps if (p.get("cliente") or {}).get("ativa")),
-                           "sugeridas_cliente": sum(1 for p in ps if p.get("selecao_cliente") == "sugerida" and _livres(p))})
+                           "para_o_cliente": sum(1 for p in ps if vai_ao_cliente(p)),
+                           "sugeridas_cliente": sum(1 for p in ps if p.get("selecao_cliente") == "sugerida" and vai_ao_cliente(p))})
     if a.json:
         print(json.dumps(blocos, ensure_ascii=False, indent=1))
         return
@@ -1277,17 +1298,19 @@ def cmd_plano(a, raiz):
 
 
 def _livres(p):
-    return not (p.get("cliente") or {}).get("ativa") and not p.get("respostas_cliente")
+    """Fora da lista do cliente (e o cliente não respondeu): pode ser ligada."""
+    return not vai_ao_cliente(p) and not p.get("respostas_cliente")
 
 
 def _sugeridas(e):
-    """Perguntas que EU pré-selecionei para o cliente (marcadas na lista completa) e que ainda não foram direcionadas."""
-    return [p for p in visiveis(e) if p.get("selecao_cliente") == "sugerida" and (p.get("neg") or {}).get("q") and _livres(p)]
+    """Marcadas por mim e ainda sem decisão explícita do usuário: vão ao cliente se ele não desmarcar."""
+    return [p for p in visiveis(e) if p.get("selecao_cliente") == "sugerida" and p.get("cliente") is None and vai_ao_cliente(p)
+            and not p.get("respostas_cliente")]
 
 
 def _com_texto_pronto(e):
-    """Têm texto em linguagem de negócio disponível, mas não estão entre as que eu pré-selecionei."""
-    return [p for p in visiveis(e) if p.get("selecao_cliente") != "sugerida" and (p.get("neg") or {}).get("q") and _livres(p)]
+    """Fora da lista, com texto de negócio disponível (o usuário pode ligar), sem as que ele dispensou."""
+    return [p for p in visiveis(e) if p.get("selecao_cliente") != "dispensada" and (p.get("neg") or {}).get("q") and _livres(p)]
 
 
 def cmd_lista_cliente(a, raiz):
@@ -1295,18 +1318,20 @@ def cmd_lista_cliente(a, raiz):
     _, e = carregar(raiz)
     dirs = [p for p in visiveis(e) if (p.get("cliente") or {}).get("ativa") and not p.get("respostas_cliente")]
     sug, outras = _sugeridas(e), _com_texto_pronto(e)
+    dispensadas = [p for p in visiveis(e) if p.get("selecao_cliente") == "dispensada" and not vai_ao_cliente(p)]
 
     def item(p):
         return {"id": p["id"], "bloco": nome_bloco(e, p["bloco"]), "tecnica": p["q"], "texto": p["neg"]["q"], "opcoes": p["neg"].get("o", []),
                 "design": bool(p.get("design"))}
     if a.json:
         print(json.dumps({"direcionadas": [{"id": p["id"], "texto": p["cliente"]["texto"], "opcoes": p["cliente"].get("opcoes", [])} for p in dirs],
-                          "sugeridas": [item(p) for p in sug], "com_texto_pronto": [item(p) for p in outras]}, ensure_ascii=False, indent=1))
+                          "sugeridas": [item(p) for p in sug], "com_texto_pronto": [item(p) for p in outras],
+                          "dispensadas": [item(p) for p in dispensadas]}, ensure_ascii=False, indent=1))
         return
     print(f"Direcionadas ao cliente ({len(dirs)}):")
     for p in dirs:
         print(f"  [{p['id']}] {p['cliente']['texto']}")
-    print(f"\n📌 Sugeridas por mim para o cliente ({len(sug)}), marcadas na lista completa:")
+    print(f"\n📌 Marcadas por mim (VÃO ao cliente se o usuário não desmarcar) ({len(sug)}):")
     for p in sug:
         print(f"  [{p['id']}] {p['neg']['q']}{'  (design: leva opções visuais)' if p.get('design') else ''}")
     print(f"\nOutras com texto pronto, que você pode escolher ({len(outras)}):")
@@ -1314,7 +1339,7 @@ def cmd_lista_cliente(a, raiz):
         print(f"  [{p['id']}] {p['neg']['q']}")
     if not a.todas and len(outras) > 8:
         print(f"  ... e mais {len(outras) - 8} (use --todas para listar)")
-    disp = [p["id"] for p in visiveis(e) if p.get("selecao_cliente") == "dispensada"]
+    disp = [p["id"] for p in dispensadas]
     if disp:
         print(f"\nSugestões que o usuário DISPENSOU ({len(disp)}): {', '.join(disp)}")
     print("\nAprovando: `cliente-lote --sugeridas` ou `cliente-lote --ids A,B`; depois `export-cliente`. "

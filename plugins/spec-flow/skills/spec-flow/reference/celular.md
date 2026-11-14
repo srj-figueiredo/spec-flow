@@ -28,9 +28,7 @@ O usuário responde quando e de onde quiser, pelo navegador do celular. Cada toq
 Não existe "enviar": cada toque é salvo na hora e **tudo pode ser mudado a qualquer momento**. O que a página oferece, e que você deve respeitar ao importar:
 
 - **Reabrir** qualquer pergunta respondida (com pop-up "você já respondeu, tem certeza?"); pular por cima de uma resposta também pede confirmação.
-- **Não enviar ao cliente** (revoga a sua sugestão 📌): `clientes/<ID>` com `{ativa: false, dispensada: true}`. O motor guarda `selecao_cliente: "dispensada"`; não remarque.
-- **Revogar envio** de uma pergunta que o usuário mesmo mandou ao cliente (enquanto o cliente não respondeu).
-- **Enviar ao cliente** qualquer pergunta, com o texto pronto ou editado.
+- **Caixa "📤 Enviar ao dono do negócio"** em toda pergunta, simétrica: ligar grava `clientes/<ID>` com `{ativa: true, texto, opcoes, arquivo, em}`; desligar grava `{ativa: false, dispensada, em}`. Desligar uma sugestão sua a torna `selecao_cliente: "dispensada"`: **não remarque**. Suas sugestões (`selecao_cliente: "sugerida"`) **já valem como ligadas** até o usuário desligar. A gravação mais recente (`em`) vence, em qualquer ordem.
 - O que o usuário muda depois de você ter importado vale na próxima retomada: o mais recente vence.
 
 ## Se a página não conseguir salvar na nuvem
