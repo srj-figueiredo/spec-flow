@@ -36,6 +36,13 @@ Anotados pelo usuário enquanto o primeiro projeto real roda no chat novo. Fazer
 
 - [ ] **1. Onboarding de instalação.** Ao instalar a skill pela primeira vez, o Claude fez duas perguntas logo de cara. A skill deve guiar quem instala: dizer o que precisa ser preparado no ambiente (repositório, permissões, token do Netlify via formulário seguro, etc.) antes de começar. As duas perguntas feitas no chat novo foram: (a) **onde criar o projeto** (repositório separado ou subpasta) e (b) **se pode seguir com "app web, entrevista média"** (tipo e profundidade). O onboarding deve resolver as duas sem perguntar de forma solta: explicar a recomendação (um repositório por projeto, na raiz; tipo e profundidade inferidos do escopo, com confirmação em uma linha) e listar o que o usuário precisa preparar antes (criar o repositório no GitHub e anexá-lo à sessão, credencial do Netlify pelo formulário seguro). Pendente: ver se a mensagem completa do outro chat traz mais algum detalhe.
 
+**Direção do onboarding (palavras do usuário): mais simples e mais inteligente.** Assim que a pessoa pede para instalar a skill, o Claude deve **conferir o ambiente sozinho antes de perguntar ou fazer qualquer coisa**. Exemplos dados:
+- o repositório novo do projeto no GitHub existe e está acessível à sessão;
+- o Claude Code tem acesso ao Netlify (credencial salva para `api.netlify.com`);
+- (a completar com o que mais fizer falta: skill instalada e atualizada, Python disponível, ambiente com rede liberada para os hosts necessários, etc.)
+
+Depois da checagem, o Claude diz em poucas linhas o que está pronto, o que falta e como resolver cada item (e só então começa). Ideia de implementação a avaliar no ajuste final: um comando `SPEC preparar` (ou `doctor`) que faz as checagens e devolve uma lista "ok / falta / como resolver", chamado automaticamente pelo SKILL.md na primeira vez.
+
 **Registro da primeira interação no chat novo (relato do usuário):**
 1. Abriu o chat novo e pediu para instalar a skill spec-flow.
 2. De cara, o Claude fez duas perguntas soltas: onde criar o projeto (repositório separado ou subpasta) e se podia seguir com "app web, entrevista média".
